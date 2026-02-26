@@ -63,14 +63,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install OCI CLI
+        run: |
+          curl -sL https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+          echo "$HOME/bin" >> $GITHUB_PATH
+
       - name: Configure OCI CLI
-        uses: oracle-actions/configure-oci-credentials@v1
-        with:
-          user: ${{ secrets.OCI_USER_OCID }}
-          fingerprint: ${{ secrets.OCI_FINGERPRINT }}
-          tenancy: ${{ secrets.OCI_TENANCY_OCID }}
-          region: ${{ vars.OCI_REGION }}
-          private_key: ${{ secrets.OCI_PRIVATE_KEY }}
+        run: |
+          mkdir -p $HOME/.oci
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > $HOME/.oci/oci_api_key.pem
+          chmod 600 $HOME/.oci/oci_api_key.pem
+          cat > $HOME/.oci/config <<EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_OCID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
+          region=${{ vars.OCI_REGION }}
+          key_file=$HOME/.oci/oci_api_key.pem
+          EOF
+          chmod 600 $HOME/.oci/config
 
       - name: Configure kubectl
         run: |
