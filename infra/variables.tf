@@ -43,25 +43,25 @@ variable "node_shape" {
 variable "node_ocpus" {
   description = "Number of OCPUs per worker node"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "node_memory_in_gbs" {
   description = "Memory in GBs per worker node"
   type        = number
-  default     = 12
+  default     = 6
 }
 
 variable "node_pool_size" {
   description = "Number of worker nodes"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "node_boot_volume_size_in_gbs" {
   description = "Boot volume size in GBs per worker node"
   type        = number
-  default     = 100
+  default     = 50
 }
 
 variable "ssh_public_key_path" {
