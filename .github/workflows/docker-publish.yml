@@ -96,3 +96,14 @@ jobs:
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+      # Trigger deploy in the infra repo after a successful push
+      - name: Trigger deploy
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          gh api repos/zachbroad/nitrohook-infra/dispatches \
+            -f event_type=deploy \
+            -f 'client_payload[image_tag]=${{ github.sha }}' \
+            -f 'client_payload[environment]=prod'
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_DEPLOY_TOKEN }}

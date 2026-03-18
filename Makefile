@@ -1,4 +1,4 @@
-.PHONY: run-api run-worker build test docker-build docker-up docker-down migrate-up migrate-down migrate-create
+.PHONY: run-api run-worker build test docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db
 
 DATABASE_URL ?= postgres://relay:relay@localhost:5432/nitrohook?sslmode=disable
 
@@ -33,3 +33,6 @@ migrate-down:
 migrate-create:
 	@read -p "Migration name: " name; \
 	migrate create -ext sql -dir migrations -seq $$name
+
+create-db:
+	psql "postgres://relay:relay@localhost:5432/postgres?sslmode=disable" -c "CREATE DATABASE nitrohook" 2>/dev/null || true
