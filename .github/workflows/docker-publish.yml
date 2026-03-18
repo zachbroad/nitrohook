@@ -71,17 +71,3 @@ jobs:
           TAGS: ${{ steps.meta.outputs.tags }}
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
-
-  deploy:
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger deploy
-        run: |
-          gh api repos/zachbroad/nitrohook-infra/dispatches \
-            -f event_type=deploy \
-            -f 'client_payload[image_tag]=${{ github.sha }}' \
-            -f 'client_payload[environment]=prod'
-        env:
-          GH_TOKEN: ${{ secrets.INFRA_DEPLOY_TOKEN }}

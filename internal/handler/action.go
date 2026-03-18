@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/zachbroad/nitrohook/internal/dispatch"
 	"github.com/zachbroad/nitrohook/internal/model"
-	"github.com/zachbroad/nitrohook/internal/script"
 	"github.com/zachbroad/nitrohook/internal/store"
 )
 
@@ -51,23 +51,21 @@ func (h *ActionHandler) Create(c *gin.Context) {
 		actionType = model.ActionTypeWebhook
 	}
 
-	switch actionType {
-	case model.ActionTypeWebhook:
-		if req.TargetURL == nil || *req.TargetURL == "" {
-			c.String(http.StatusBadRequest, "target_url is required for webhook actions")
-			return
-		}
-	case model.ActionTypeJavascript:
-		if req.ScriptBody == nil || *req.ScriptBody == "" {
-			c.String(http.StatusBadRequest, "script_body is required for javascript actions")
-			return
-		}
-		if err := script.ValidateAction(*req.ScriptBody); err != nil {
-			c.String(http.StatusBadRequest, "invalid script: %s", err.Error())
-			return
-		}
-	default:
-		c.String(http.StatusBadRequest, "invalid action type: must be 'webhook' or 'javascript'")
+	d, err := dispatch.Get(actionType)
+	if err != nil {
+		c.String(http.StatusBadRequest, "invalid action type: %s", req.Type)
+		return
+	}
+
+	// Build a temporary action to validate
+	tmpAction := &model.Action{
+		Type:          actionType,
+		TargetURL:     req.TargetURL,
+		SigningSecret: req.SigningSecret,
+		ScriptBody:    req.ScriptBody,
+	}
+	if err := d.Validate(tmpAction); err != nil {
+		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
 
