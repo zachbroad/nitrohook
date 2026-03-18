@@ -22,14 +22,6 @@ type ActionType string
 const (
 	ActionTypeWebhook    ActionType = "webhook"
 	ActionTypeJavascript ActionType = "javascript"
-	// ActionTypeSMTP       ActionType = "smtp"
-	// ActionTypeDiscord    ActionType = "discord"
-	// ActionTypeSlack      ActionType = "slack"
-	// ActionTypePagerDuty   ActionType = "pagerduty"
-	// ActionTypeOpsGenie    ActionType = "opsgenie"
-	// ActionTypeS3         ActionType = "s3"
-	// ActionTypeSQS        ActionType = "sqs"
-	// ActionTypeKinesis    ActionType = "kinesis"
 )
 
 type Action struct {

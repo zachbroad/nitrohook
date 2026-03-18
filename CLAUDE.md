@@ -34,7 +34,7 @@ Two entry points in `cmd/`:
 
 **Key packages under `internal/`:**
 - `config` — Loads all config from environment variables
-- `database` — pgxpool connection setup
+- `database` — pgxpool connection setup + embedded migrations via `--migrate` flag
 - `handler` — HTTP handlers (webhook ingest, action CRUD, delivery listing)
 - `model` — Domain types: Source, Action (with type: webhook|javascript), Delivery, DeliveryAttempt
 - `script` — Transform scripts (source-level) and action scripts (per-action JS via goja)
@@ -70,4 +70,4 @@ Key config (see `internal/config/config.go`): `DATABASE_URL`, `REDIS_URL`, `PORT
 
 ## Dependencies
 
-Go 1.24+, gin (router), pgx (Postgres), go-redis (Redis streams), goja (JS runtime), google/uuid, godotenv. External tools: docker compose, golang-migrate CLI, psql/jq (for shell scripts in `scripts/`).
+Go 1.24+, gin (router), pgx (Postgres), go-redis (Redis streams), golang-migrate (embedded migrations), goja (JS runtime), google/uuid, godotenv. External tools: docker compose, golang-migrate CLI (local dev), psql/jq (for shell scripts in `scripts/`). Deployment config (Helm chart, Terraform) lives in a separate private `nitrohook-infra` repo.
