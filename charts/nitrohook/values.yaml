@@ -8,10 +8,6 @@ image:
     repository: nitrohook-worker
     tag: ""
     pullPolicy: IfNotPresent
-  migrate:
-    repository: nitrohook-migrate
-    tag: ""
-    pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 nameOverride: ""

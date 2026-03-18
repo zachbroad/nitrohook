@@ -23,10 +23,22 @@ import (
 
 func main() {
 	withWorker := flag.Bool("worker", false, "also run the fan-out worker in-process")
+	migrateOnly := flag.Bool("migrate", false, "run database migrations and exit")
 	flag.Parse()
 
 	_ = godotenv.Load()  // Load .env file
 	cfg := config.Load() // Load config from environment variables
+
+	// Run migrations and exit if --migrate flag is set
+	if *migrateOnly {
+		slog.Info("running database migrations")
+		if err := database.Migrate(cfg.DatabaseURL); err != nil {
+			slog.Error("migration failed", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("migrations complete")
+		return
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
