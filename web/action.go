@@ -1,8 +1,10 @@
 package web
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -32,7 +34,7 @@ func (h *Handler) CreateAction(c *gin.Context) {
 			if s := strings.TrimSpace(c.PostForm("signing_secret")); s != "" {
 				signingSecret = &s
 			}
-			if _, err := h.store.Actions.Create(c.Request.Context(), source.ID, actionType, &targetURL, signingSecret, nil); err != nil {
+			if _, err := h.store.Actions.Create(c.Request.Context(), source.ID, actionType, &targetURL, signingSecret, nil, nil); err != nil {
 				slog.Error("failed to create action", "error", err)
 			}
 		}
@@ -42,9 +44,61 @@ func (h *Handler) CreateAction(c *gin.Context) {
 			if err := script.ValidateAction(scriptBody); err != nil {
 				slog.Error("invalid action script", "error", err)
 			} else {
-				if _, err := h.store.Actions.Create(c.Request.Context(), source.ID, actionType, nil, nil, &scriptBody); err != nil {
+				if _, err := h.store.Actions.Create(c.Request.Context(), source.ID, actionType, nil, nil, &scriptBody, nil); err != nil {
 					slog.Error("failed to create action", "error", err)
 				}
+			}
+		}
+	case model.ActionTypeSlack:
+		webhookURL := strings.TrimSpace(c.PostForm("slack_webhook_url"))
+		if webhookURL != "" {
+			cfg := map[string]any{"webhook_url": webhookURL}
+			if ch := strings.TrimSpace(c.PostForm("slack_channel")); ch != "" {
+				cfg["channel"] = ch
+			}
+			if un := strings.TrimSpace(c.PostForm("slack_username")); un != "" {
+				cfg["username"] = un
+			}
+			cfgJSON, _ := json.Marshal(cfg)
+			if _, err := h.store.Actions.Create(c.Request.Context(), source.ID, actionType, nil, nil, nil, cfgJSON); err != nil {
+				slog.Error("failed to create action", "error", err)
+			}
+		}
+	case model.ActionTypeSMTP:
+		host := strings.TrimSpace(c.PostForm("smtp_host"))
+		from := strings.TrimSpace(c.PostForm("smtp_from"))
+		to := strings.TrimSpace(c.PostForm("smtp_to"))
+		portStr := strings.TrimSpace(c.PostForm("smtp_port"))
+		if host != "" && from != "" && to != "" && portStr != "" {
+			port, _ := strconv.Atoi(portStr)
+			cfg := map[string]any{"host": host, "port": port, "from": from, "to": to}
+			if u := strings.TrimSpace(c.PostForm("smtp_username")); u != "" {
+				cfg["username"] = u
+			}
+			if p := strings.TrimSpace(c.PostForm("smtp_password")); p != "" {
+				cfg["password"] = p
+			}
+			if s := strings.TrimSpace(c.PostForm("smtp_subject")); s != "" {
+				cfg["subject"] = s
+			}
+			cfgJSON, _ := json.Marshal(cfg)
+			if _, err := h.store.Actions.Create(c.Request.Context(), source.ID, actionType, nil, nil, nil, cfgJSON); err != nil {
+				slog.Error("failed to create action", "error", err)
+			}
+		}
+	case model.ActionTypeTwilio:
+		accountSID := strings.TrimSpace(c.PostForm("twilio_account_sid"))
+		authToken := strings.TrimSpace(c.PostForm("twilio_auth_token"))
+		from := strings.TrimSpace(c.PostForm("twilio_from"))
+		to := strings.TrimSpace(c.PostForm("twilio_to"))
+		if accountSID != "" && authToken != "" && from != "" && to != "" {
+			cfg := map[string]any{"account_sid": accountSID, "auth_token": authToken, "from": from, "to": to}
+			if t := strings.TrimSpace(c.PostForm("twilio_body_template")); t != "" {
+				cfg["body_template"] = t
+			}
+			cfgJSON, _ := json.Marshal(cfg)
+			if _, err := h.store.Actions.Create(c.Request.Context(), source.ID, actionType, nil, nil, nil, cfgJSON); err != nil {
+				slog.Error("failed to create action", "error", err)
 			}
 		}
 	}
@@ -110,7 +164,7 @@ func (h *Handler) UpdateAction(c *gin.Context) {
 			if s := strings.TrimSpace(c.PostForm("signing_secret")); s != "" {
 				signingSecret = &s
 			}
-			if _, err := h.store.Actions.Update(c.Request.Context(), id, &targetURL, signingSecret, nil, nil); err != nil {
+			if _, err := h.store.Actions.Update(c.Request.Context(), id, &targetURL, signingSecret, nil, nil, nil); err != nil {
 				slog.Error("failed to update action", "error", err)
 				actionError = "Failed to update action"
 			}
@@ -122,7 +176,68 @@ func (h *Handler) UpdateAction(c *gin.Context) {
 		} else if err := script.ValidateAction(scriptBody); err != nil {
 			actionError = "Invalid script: " + err.Error()
 		} else {
-			if _, err := h.store.Actions.Update(c.Request.Context(), id, nil, nil, nil, &scriptBody); err != nil {
+			if _, err := h.store.Actions.Update(c.Request.Context(), id, nil, nil, nil, &scriptBody, nil); err != nil {
+				slog.Error("failed to update action", "error", err)
+				actionError = "Failed to update action"
+			}
+		}
+	case model.ActionTypeSlack:
+		webhookURL := strings.TrimSpace(c.PostForm("slack_webhook_url"))
+		if webhookURL == "" {
+			actionError = "Webhook URL is required for Slack actions"
+		} else {
+			cfg := map[string]any{"webhook_url": webhookURL}
+			if ch := strings.TrimSpace(c.PostForm("slack_channel")); ch != "" {
+				cfg["channel"] = ch
+			}
+			if un := strings.TrimSpace(c.PostForm("slack_username")); un != "" {
+				cfg["username"] = un
+			}
+			cfgJSON, _ := json.Marshal(cfg)
+			if _, err := h.store.Actions.Update(c.Request.Context(), id, nil, nil, nil, nil, cfgJSON); err != nil {
+				slog.Error("failed to update action", "error", err)
+				actionError = "Failed to update action"
+			}
+		}
+	case model.ActionTypeSMTP:
+		host := strings.TrimSpace(c.PostForm("smtp_host"))
+		from := strings.TrimSpace(c.PostForm("smtp_from"))
+		to := strings.TrimSpace(c.PostForm("smtp_to"))
+		portStr := strings.TrimSpace(c.PostForm("smtp_port"))
+		if host == "" || from == "" || to == "" || portStr == "" {
+			actionError = "Host, port, from, and to are required for SMTP actions"
+		} else {
+			port, _ := strconv.Atoi(portStr)
+			cfg := map[string]any{"host": host, "port": port, "from": from, "to": to}
+			if u := strings.TrimSpace(c.PostForm("smtp_username")); u != "" {
+				cfg["username"] = u
+			}
+			if p := strings.TrimSpace(c.PostForm("smtp_password")); p != "" {
+				cfg["password"] = p
+			}
+			if s := strings.TrimSpace(c.PostForm("smtp_subject")); s != "" {
+				cfg["subject"] = s
+			}
+			cfgJSON, _ := json.Marshal(cfg)
+			if _, err := h.store.Actions.Update(c.Request.Context(), id, nil, nil, nil, nil, cfgJSON); err != nil {
+				slog.Error("failed to update action", "error", err)
+				actionError = "Failed to update action"
+			}
+		}
+	case model.ActionTypeTwilio:
+		accountSID := strings.TrimSpace(c.PostForm("twilio_account_sid"))
+		authToken := strings.TrimSpace(c.PostForm("twilio_auth_token"))
+		from := strings.TrimSpace(c.PostForm("twilio_from"))
+		to := strings.TrimSpace(c.PostForm("twilio_to"))
+		if accountSID == "" || authToken == "" || from == "" || to == "" {
+			actionError = "Account SID, auth token, from, and to are required for Twilio actions"
+		} else {
+			cfg := map[string]any{"account_sid": accountSID, "auth_token": authToken, "from": from, "to": to}
+			if t := strings.TrimSpace(c.PostForm("twilio_body_template")); t != "" {
+				cfg["body_template"] = t
+			}
+			cfgJSON, _ := json.Marshal(cfg)
+			if _, err := h.store.Actions.Update(c.Request.Context(), id, nil, nil, nil, nil, cfgJSON); err != nil {
 				slog.Error("failed to update action", "error", err)
 				actionError = "Failed to update action"
 			}
@@ -162,7 +277,7 @@ func (h *Handler) ToggleAction(c *gin.Context) {
 		return
 	}
 	isActive := c.PostForm("is_active") == "on"
-	if _, err := h.store.Actions.Update(c.Request.Context(), id, nil, nil, &isActive, nil); err != nil {
+	if _, err := h.store.Actions.Update(c.Request.Context(), id, nil, nil, &isActive, nil, nil); err != nil {
 		slog.Error("failed to toggle action", "error", err)
 	}
 	actions, _ := h.store.Actions.List(c.Request.Context(), source.ID)

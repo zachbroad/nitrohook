@@ -1,4 +1,4 @@
-.PHONY: run-api run-worker build test docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db
+.PHONY: run-api run-worker build test test-unit test-integration test-all docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db
 
 DATABASE_URL ?= postgres://relay:relay@localhost:5432/nitrohook?sslmode=disable
 
@@ -14,6 +14,15 @@ build:
 
 test:
 	go test ./...
+
+test-unit:
+	go test ./...
+
+test-integration:
+	go test -tags=integration ./...
+
+test-all:
+	go test -tags=integration ./...
 
 docker-build:
 	docker compose build

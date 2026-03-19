@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -14,14 +15,21 @@ type ActionStore struct {
 	pool *pgxpool.Pool
 }
 
-func (s *ActionStore) Create(ctx context.Context, sourceID uuid.UUID, actionType model.ActionType, targetURL *string, signingSecret *string, scriptBody *string) (*model.Action, error) {
+const actionColumns = `id, source_id, type, target_url, script_body, signing_secret, config, is_active, created_at, updated_at`
+
+func scanAction(scan func(dest ...any) error) (model.Action, error) {
 	var a model.Action
-	err := s.pool.QueryRow(ctx,
-		`INSERT INTO actions (source_id, type, target_url, signing_secret, script_body)
-		 VALUES ($1, $2, $3, $4, $5)
-		 RETURNING id, source_id, type, target_url, script_body, signing_secret, is_active, created_at, updated_at`,
-		sourceID, actionType, targetURL, signingSecret, scriptBody,
-	).Scan(&a.ID, &a.SourceID, &a.Type, &a.TargetURL, &a.ScriptBody, &a.SigningSecret, &a.IsActive, &a.CreatedAt, &a.UpdatedAt)
+	err := scan(&a.ID, &a.SourceID, &a.Type, &a.TargetURL, &a.ScriptBody, &a.SigningSecret, &a.Config, &a.IsActive, &a.CreatedAt, &a.UpdatedAt)
+	return a, err
+}
+
+func (s *ActionStore) Create(ctx context.Context, sourceID uuid.UUID, actionType model.ActionType, targetURL *string, signingSecret *string, scriptBody *string, config json.RawMessage) (*model.Action, error) {
+	a, err := scanAction(s.pool.QueryRow(ctx,
+		`INSERT INTO actions (source_id, type, target_url, signing_secret, script_body, config)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 RETURNING `+actionColumns,
+		sourceID, actionType, targetURL, signingSecret, scriptBody, config,
+	).Scan)
 	if err != nil {
 		return nil, fmt.Errorf("create action: %w", err)
 	}
@@ -30,8 +38,7 @@ func (s *ActionStore) Create(ctx context.Context, sourceID uuid.UUID, actionType
 
 func (s *ActionStore) List(ctx context.Context, sourceID uuid.UUID) ([]model.Action, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, source_id, type, target_url, script_body, signing_secret, is_active, created_at, updated_at
-		 FROM actions WHERE source_id = $1 ORDER BY created_at DESC`,
+		`SELECT `+actionColumns+` FROM actions WHERE source_id = $1 ORDER BY created_at DESC`,
 		sourceID,
 	)
 	if err != nil {
@@ -41,8 +48,8 @@ func (s *ActionStore) List(ctx context.Context, sourceID uuid.UUID) ([]model.Act
 
 	var actions []model.Action
 	for rows.Next() {
-		var a model.Action
-		if err := rows.Scan(&a.ID, &a.SourceID, &a.Type, &a.TargetURL, &a.ScriptBody, &a.SigningSecret, &a.IsActive, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		a, err := scanAction(rows.Scan)
+		if err != nil {
 			return nil, fmt.Errorf("scan action: %w", err)
 		}
 		actions = append(actions, a)
@@ -51,31 +58,29 @@ func (s *ActionStore) List(ctx context.Context, sourceID uuid.UUID) ([]model.Act
 }
 
 func (s *ActionStore) GetByID(ctx context.Context, id uuid.UUID) (*model.Action, error) {
-	var a model.Action
-	err := s.pool.QueryRow(ctx,
-		`SELECT id, source_id, type, target_url, script_body, signing_secret, is_active, created_at, updated_at
-		 FROM actions WHERE id = $1`,
+	a, err := scanAction(s.pool.QueryRow(ctx,
+		`SELECT `+actionColumns+` FROM actions WHERE id = $1`,
 		id,
-	).Scan(&a.ID, &a.SourceID, &a.Type, &a.TargetURL, &a.ScriptBody, &a.SigningSecret, &a.IsActive, &a.CreatedAt, &a.UpdatedAt)
+	).Scan)
 	if err != nil {
 		return nil, fmt.Errorf("get action: %w", err)
 	}
 	return &a, nil
 }
 
-func (s *ActionStore) Update(ctx context.Context, id uuid.UUID, targetURL *string, signingSecret *string, isActive *bool, scriptBody *string) (*model.Action, error) {
-	var a model.Action
-	err := s.pool.QueryRow(ctx,
+func (s *ActionStore) Update(ctx context.Context, id uuid.UUID, targetURL *string, signingSecret *string, isActive *bool, scriptBody *string, config json.RawMessage) (*model.Action, error) {
+	a, err := scanAction(s.pool.QueryRow(ctx,
 		`UPDATE actions SET
 			target_url     = COALESCE($2, target_url),
 			signing_secret = COALESCE($3, signing_secret),
 			is_active      = COALESCE($4, is_active),
 			script_body    = COALESCE($5, script_body),
-			updated_at     = $6
+			config         = COALESCE($6, config),
+			updated_at     = $7
 		 WHERE id = $1
-		 RETURNING id, source_id, type, target_url, script_body, signing_secret, is_active, created_at, updated_at`,
-		id, targetURL, signingSecret, isActive, scriptBody, time.Now(),
-	).Scan(&a.ID, &a.SourceID, &a.Type, &a.TargetURL, &a.ScriptBody, &a.SigningSecret, &a.IsActive, &a.CreatedAt, &a.UpdatedAt)
+		 RETURNING `+actionColumns,
+		id, targetURL, signingSecret, isActive, scriptBody, config, time.Now(),
+	).Scan)
 	if err != nil {
 		return nil, fmt.Errorf("update action: %w", err)
 	}
@@ -92,8 +97,7 @@ func (s *ActionStore) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (s *ActionStore) ListActiveBySource(ctx context.Context, sourceID uuid.UUID) ([]model.Action, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, source_id, type, target_url, script_body, signing_secret, is_active, created_at, updated_at
-		 FROM actions WHERE source_id = $1 AND is_active = true`,
+		`SELECT `+actionColumns+` FROM actions WHERE source_id = $1 AND is_active = true`,
 		sourceID,
 	)
 	if err != nil {
@@ -103,8 +107,8 @@ func (s *ActionStore) ListActiveBySource(ctx context.Context, sourceID uuid.UUID
 
 	var actions []model.Action
 	for rows.Next() {
-		var a model.Action
-		if err := rows.Scan(&a.ID, &a.SourceID, &a.Type, &a.TargetURL, &a.ScriptBody, &a.SigningSecret, &a.IsActive, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		a, err := scanAction(rows.Scan)
+		if err != nil {
 			return nil, fmt.Errorf("scan action: %w", err)
 		}
 		actions = append(actions, a)

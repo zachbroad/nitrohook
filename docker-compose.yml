@@ -9,6 +9,11 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relay -d nitrohook"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   redis:
     image: redis:8-alpine
@@ -16,6 +21,22 @@ services:
       - "6379:6379"
     volumes:
       - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: ["/api", "--migrate"]
+    environment:
+      DATABASE_URL: postgres://relay:relay@postgres:5432/nitrohook?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   api:
     build:
@@ -23,25 +44,27 @@ services:
       dockerfile: Dockerfile.api
     ports:
       - "8080:8080"
-    env_file: .env
     environment:
       DATABASE_URL: postgres://relay:relay@postgres:5432/nitrohook?sslmode=disable
       REDIS_URL: redis://redis:6379
     depends_on:
-      - postgres
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
   worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    env_file: .env
     environment:
       DATABASE_URL: postgres://relay:relay@postgres:5432/nitrohook?sslmode=disable
       REDIS_URL: redis://redis:6379
     depends_on:
-      - postgres
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     deploy:
       replicas: 2
 

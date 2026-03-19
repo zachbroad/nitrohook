@@ -69,7 +69,7 @@ func (h *ActionHandler) Create(c *gin.Context) {
 		return
 	}
 
-	action, err := h.store.Actions.Create(c.Request.Context(), src.ID, actionType, req.TargetURL, req.SigningSecret, req.ScriptBody)
+	action, err := h.store.Actions.Create(c.Request.Context(), src.ID, actionType, req.TargetURL, req.SigningSecret, req.ScriptBody, nil)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "failed to create action")
 		return
@@ -128,7 +128,7 @@ func (h *ActionHandler) Update(c *gin.Context) {
 		return
 	}
 
-	action, err := h.store.Actions.Update(c.Request.Context(), id, req.TargetURL, req.SigningSecret, req.IsActive, nil)
+	action, err := h.store.Actions.Update(c.Request.Context(), id, req.TargetURL, req.SigningSecret, req.IsActive, nil, nil)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "failed to update action")
 		return

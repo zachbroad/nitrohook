@@ -35,10 +35,12 @@ type FanoutWorker struct {
 
 func New(s *store.Store, rdb *redis.Client, concurrency, maxRetries int, retryBaseDelay, deliveryTimeout, pollInterval time.Duration) *FanoutWorker {
 	// Register dispatchers
-	dispatch.Register(model.ActionTypeWebhook, &dispatch.WebhookDispatcher{
-		Client: &http.Client{Timeout: deliveryTimeout},
-	})
+	httpClient := &http.Client{Timeout: deliveryTimeout}
+	dispatch.Register(model.ActionTypeWebhook, &dispatch.WebhookDispatcher{Client: httpClient})
 	dispatch.Register(model.ActionTypeJavascript, &dispatch.JavascriptDispatcher{})
+	dispatch.Register(model.ActionTypeSlack, &dispatch.SlackDispatcher{Client: httpClient})
+	dispatch.Register(model.ActionTypeSMTP, &dispatch.SMTPDispatcher{})
+	dispatch.Register(model.ActionTypeTwilio, &dispatch.TwilioDispatcher{Client: httpClient})
 
 	return &FanoutWorker{
 		store:          s,

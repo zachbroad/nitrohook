@@ -22,6 +22,18 @@ type Dispatcher interface {
 	Validate(action *model.Action) error
 }
 
+// parseConfig unmarshals the action's Config JSON into a typed struct.
+func parseConfig[T any](action *model.Action) (T, error) {
+	var cfg T
+	if action.Config == nil {
+		return cfg, fmt.Errorf("config is required")
+	}
+	if err := json.Unmarshal(action.Config, &cfg); err != nil {
+		return cfg, fmt.Errorf("invalid config: %w", err)
+	}
+	return cfg, nil
+}
+
 var registry = map[model.ActionType]Dispatcher{}
 
 // Register adds a dispatcher for an action type.

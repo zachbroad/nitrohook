@@ -56,6 +56,19 @@ var funcMap = template.FuncMap{
 		}
 		return template.HTML(template.HTMLEscapeString(string(b)))
 	},
+	"configGet": func(cfg json.RawMessage, key string) string {
+		if cfg == nil {
+			return ""
+		}
+		var m map[string]any
+		if err := json.Unmarshal(cfg, &m); err != nil {
+			return ""
+		}
+		if v, ok := m[key]; ok {
+			return fmt.Sprintf("%v", v)
+		}
+		return ""
+	},
 	"truncateJSON": func(data json.RawMessage, maxLen int) string {
 		if data == nil {
 			return "(empty)"
