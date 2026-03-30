@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultTestDatabaseURL = "postgres://relay:relay@localhost:5432/nitrohook?sslmode=disable"
+	defaultTestDatabaseURL = "postgres://nitrohook:nitrohook@localhost:5432/nitrohook?sslmode=disable"
 	defaultTestRedisURL    = "redis://localhost:6379"
 )
 

@@ -2,15 +2,15 @@ services:
   postgres:
     image: postgres:18-alpine
     environment:
-      POSTGRES_USER: relay
-      POSTGRES_PASSWORD: relay
+      POSTGRES_USER: nitrohook
+      POSTGRES_PASSWORD: nitrohook
       POSTGRES_DB: nitrohook
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U relay -d nitrohook"]
+      test: ["CMD-SHELL", "pg_isready -U nitrohook -d nitrohook"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -33,7 +33,7 @@ services:
       dockerfile: Dockerfile.api
     command: ["/api", "--migrate"]
     environment:
-      DATABASE_URL: postgres://relay:relay@postgres:5432/nitrohook?sslmode=disable
+      DATABASE_URL: postgres://nitrohook:nitrohook@postgres:5432/nitrohook?sslmode=disable
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,7 +45,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DATABASE_URL: postgres://relay:relay@postgres:5432/nitrohook?sslmode=disable
+      DATABASE_URL: postgres://nitrohook:nitrohook@postgres:5432/nitrohook?sslmode=disable
       REDIS_URL: redis://redis:6379
     depends_on:
       migrate:
@@ -58,7 +58,7 @@ services:
       context: .
       dockerfile: Dockerfile.worker
     environment:
-      DATABASE_URL: postgres://relay:relay@postgres:5432/nitrohook?sslmode=disable
+      DATABASE_URL: postgres://nitrohook:nitrohook@postgres:5432/nitrohook?sslmode=disable
       REDIS_URL: redis://redis:6379
     depends_on:
       migrate:

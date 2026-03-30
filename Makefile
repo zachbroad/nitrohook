@@ -1,6 +1,6 @@
 .PHONY: run-api run-worker build test test-unit test-integration test-all docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db
 
-DATABASE_URL ?= postgres://relay:relay@localhost:5432/nitrohook?sslmode=disable
+DATABASE_URL ?= postgres://nitrohook:nitrohook@localhost:5432/nitrohook?sslmode=disable
 
 run-api:
 	go run ./cmd/api
@@ -44,4 +44,4 @@ migrate-create:
 	migrate create -ext sql -dir migrations -seq $$name
 
 create-db:
-	psql "postgres://relay:relay@localhost:5432/postgres?sslmode=disable" -c "CREATE DATABASE nitrohook" 2>/dev/null || true
+	psql "postgres://nitrohook:nitrohook@localhost:5432/postgres?sslmode=disable" -c "CREATE DATABASE nitrohook" 2>/dev/null || true
