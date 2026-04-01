@@ -16,8 +16,8 @@
   --text: #1e293b;
   --text-muted: #64748b;
   --border: #e2e8f0;
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
+  --primary: #f97316;
+  --primary-hover: #ea580c;
   --danger: #ef4444;
   --danger-hover: #dc2626;
   --green: #16a34a;
@@ -43,30 +43,60 @@ body {
 }
 
 nav {
-  background: var(--nav-bg);
+  background: #0f172a;
   color: var(--nav-text);
-  padding: 0 1.5rem;
+  padding: 0 2rem;
   display: flex;
   align-items: center;
-  height: 56px;
-  gap: 2rem;
+  height: 64px;
+  gap: 0;
+  border-bottom: 3px solid var(--primary);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.25);
 }
 
 nav .brand {
-  font-weight: 700;
-  font-size: 1.1rem;
-  letter-spacing: -0.02em;
+  font-weight: 800;
+  font-size: 1.2rem;
+  letter-spacing: -0.03em;
+  color: #fff;
+  margin-right: 2.5rem;
+  display: flex;
+  align-items: center;
+}
+
+nav .brand .nitro {
+  color: var(--primary);
+}
+
+nav .nav-links {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 0.25rem;
 }
 
 nav a {
-  color: var(--nav-text);
+  color: rgba(241,245,249,0.65);
   text-decoration: none;
-  opacity: 0.7;
-  font-size: 0.9rem;
-  transition: opacity 0.15s;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+  letter-spacing: 0.01em;
 }
 
-nav a:hover, nav a.active { opacity: 1; }
+nav a:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.08);
+}
+
+nav a.active {
+  color: #fff;
+  background: rgba(249,115,22,0.15);
+  color: var(--primary);
+  font-weight: 600;
+}
 
 .container {
   max-width: 1100px;
@@ -160,7 +190,7 @@ input[type="text"], input[type="url"], select {
 
 input[type="text"]:focus, input[type="url"]:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+  box-shadow: 0 0 0 2px rgba(249,115,22,0.15);
 }
 
 button, .btn {
@@ -325,7 +355,7 @@ textarea {
 
 textarea:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+  box-shadow: 0 0 0 2px rgba(249,115,22,0.15);
 }
 
 .script-help {
@@ -340,6 +370,33 @@ textarea:focus {
   padding: 0.1rem 0.3rem;
   border-radius: 3px;
   font-size: 0.75rem;
+}
+
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-family: var(--font);
+  margin-bottom: -1px;
+  transition: color 0.15s;
+}
+
+.tab-btn:hover { color: var(--text); }
+
+.tab-btn.tab-active {
+  color: var(--text);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
 }
 
 .test-section {
@@ -411,6 +468,20 @@ textarea:focus {
   background: #1e1e1e;
 }
 
+#action-transform-monaco-container {
+  height: 150px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #1e1e1e;
+}
+
+#edit-action-transform-monaco-container {
+  height: 150px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #1e1e1e;
+}
+
 @media (max-width: 768px) {
   nav { padding: 0 1rem; gap: 1rem; }
   .container { padding: 1rem; }
@@ -424,9 +495,11 @@ textarea:focus {
 <body hx-boost="true">
 
 <nav>
-  <span class="brand">NitroHook</span>
-  <a href="/sources" {{if eq .Nav "sources"}}class="active"{{end}}>Sources</a>
-  <a href="/deliveries" {{if eq .Nav "deliveries"}}class="active"{{end}}>Deliveries</a>
+  <span class="brand"><span class="nitro">NITRO</span><span class="hook">HOOK</span></span>
+  <div class="nav-links">
+    <a href="/sources" {{if eq .Nav "sources"}}class="active"{{end}}>Sources</a>
+    <a href="/deliveries" {{if eq .Nav "deliveries"}}class="active"{{end}}>Events</a>
+  </div>
 </nav>
 
 <div class="container" id="main-content">
@@ -435,13 +508,18 @@ textarea:focus {
 
 <script>
 (function() {
+  if (window.__monacoInitialized) return;
+  window.__monacoInitialized = true;
+
   var editors = {};
   var monacoReady = false;
 
   var editorConfigs = [
-    { container: 'monaco-container', textarea: 'script-body', cards: ['script-card', 'main-content'] },
-    { container: 'action-monaco-container', textarea: 'action-script-body', cards: ['actions-card', 'main-content'] },
-    { container: 'edit-action-monaco-container', textarea: 'edit-action-script-body', cards: ['actions-card', 'main-content'] }
+    { container: 'monaco-container', textarea: 'script-body', cards: ['script-card', 'tab-content', 'main-content'] },
+    { container: 'action-monaco-container', textarea: 'action-script-body', cards: ['actions-card', 'tab-content', 'main-content'] },
+    { container: 'edit-action-monaco-container', textarea: 'edit-action-script-body', cards: ['actions-card', 'tab-content', 'main-content'] },
+    { container: 'action-transform-monaco-container', textarea: 'action-transform-script', cards: ['actions-card', 'tab-content', 'main-content'] },
+    { container: 'edit-action-transform-monaco-container', textarea: 'edit-action-transform-script', cards: ['actions-card', 'tab-content', 'main-content'] }
   ];
 
   require.config({
@@ -498,11 +576,8 @@ textarea:focus {
     var target = evt.detail.target;
     if (!target) return;
     editorConfigs.forEach(function(cfg) {
-      for (var i = 0; i < cfg.cards.length; i++) {
-        if (target.id === cfg.cards[i]) {
-          disposeEditorFor(cfg);
-          break;
-        }
+      if (editors[cfg.container] && target.querySelector('#' + cfg.container)) {
+        disposeEditorFor(cfg);
       }
     });
   });
@@ -511,11 +586,8 @@ textarea:focus {
     var target = evt.detail.target;
     if (!target) return;
     editorConfigs.forEach(function(cfg) {
-      for (var i = 0; i < cfg.cards.length; i++) {
-        if (target.id === cfg.cards[i]) {
-          initEditorFor(cfg);
-          break;
-        }
+      if (target.querySelector('#' + cfg.container)) {
+        initEditorFor(cfg);
       }
     });
   });
@@ -537,20 +609,42 @@ textarea:focus {
     });
   }
 
+  function setupTransformToggle() {
+    ['action-transform-monaco-container', 'edit-action-transform-monaco-container'].forEach(function(containerId) {
+      var container = document.getElementById(containerId);
+      if (!container) return;
+      var details = container.closest('details');
+      if (!details) return;
+      var cfg = editorConfigs.find(function(c) { return c.container === containerId; });
+      if (!cfg) return;
+      details.addEventListener('toggle', function() {
+        if (details.open) {
+          setTimeout(function() { initEditorFor(cfg); }, 0);
+        }
+      });
+      // If already open on load (edit mode with existing script), init now
+      if (details.open) {
+        initEditorFor(cfg);
+      }
+    });
+  }
+
   // Init on page load
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() { initAllEditors(); setupTypeToggle(); });
+    document.addEventListener('DOMContentLoaded', function() { initAllEditors(); setupTypeToggle(); setupTransformToggle(); });
   } else {
     initAllEditors();
     setupTypeToggle();
+    setupTransformToggle();
   }
 
   // Re-setup toggle after htmx swaps the actions card
   document.body.addEventListener('htmx:afterSettle', function(evt) {
     var target = evt.detail.target;
     if (!target) return;
-    if (target.id === 'actions-card' || target.id === 'main-content') {
+    if (target.querySelector('#action-type-select') || target.id === 'actions-card') {
       setupTypeToggle();
+      setupTransformToggle();
     }
   });
 })();

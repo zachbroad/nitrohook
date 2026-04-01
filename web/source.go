@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -10,12 +11,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+	"github.com/zachbroad/nitrohook/internal/model"
 	"github.com/zachbroad/nitrohook/internal/script"
 )
 
 var nonAlphanumDash = regexp.MustCompile(`[^a-z0-9-]+`)
 var multiDash = regexp.MustCompile(`-{2,}`)
 
+/** Generate a slug based off the input name provided by the user. */
 func generateSlug(name string) string {
 	s := strings.ToLower(name)
 	s = strings.ReplaceAll(s, " ", "-")
@@ -40,13 +44,48 @@ func (h *Handler) Sources(c *gin.Context) {
 		c.String(http.StatusInternalServerError, "Internal server error")
 		return
 	}
+	counts := make(map[uuid.UUID]int, len(sources))
+	for _, s := range sources {
+		n, _ := h.store.Actions.CountBySource(c.Request.Context(), s.ID)
+		counts[s.ID] = n
+	}
 	h.render(c, "sources", sourcesData{
-		Nav:     "sources",
-		Sources: sources,
+		Nav:          "sources",
+		Sources:      sources,
+		ActionCounts: counts,
 	})
 }
 
 func (h *Handler) SourceDetail(c *gin.Context) {
+	slug := c.Param("slug")
+	source, err := h.store.Sources.GetBySlug(c.Request.Context(), slug)
+	if err != nil {
+		c.String(http.StatusNotFound, "Source not found")
+		return
+	}
+	h.render(c, "source-overview", sourceData{
+		Nav:        "sources",
+		Source:     source,
+		WebhookURL: webhookURL(c, source.Slug),
+	})
+}
+
+func (h *Handler) SourceScript(c *gin.Context) {
+	slug := c.Param("slug")
+	source, err := h.store.Sources.GetBySlug(c.Request.Context(), slug)
+	if err != nil {
+		c.String(http.StatusNotFound, "Source not found")
+		return
+	}
+	deliveries, _ := h.store.Deliveries.List(c.Request.Context(), &slug, 10)
+	h.render(c, "source-script", sourceData{
+		Nav:        "sources",
+		Source:     source,
+		Deliveries: deliveries,
+	})
+}
+
+func (h *Handler) SourceActions(c *gin.Context) {
 	slug := c.Param("slug")
 	source, err := h.store.Sources.GetBySlug(c.Request.Context(), slug)
 	if err != nil {
@@ -59,11 +98,29 @@ func (h *Handler) SourceDetail(c *gin.Context) {
 		c.String(http.StatusInternalServerError, "Internal server error")
 		return
 	}
-	deliveries, _ := h.store.Deliveries.List(c.Request.Context(), &slug, 10)
-	h.render(c, "source", sourceData{
+	data := sourceData{
+		Nav:     "sources",
+		Source:  source,
+		Actions: actions,
+	}
+	if c.GetHeader("HX-Request") != "" && c.GetHeader("HX-Boosted") == "" {
+		h.renderFragment(c, "source-actions", "actions-card", data)
+	} else {
+		h.render(c, "source-actions", data)
+	}
+}
+
+func (h *Handler) SourceEvents(c *gin.Context) {
+	slug := c.Param("slug")
+	source, err := h.store.Sources.GetBySlug(c.Request.Context(), slug)
+	if err != nil {
+		c.String(http.StatusNotFound, "Source not found")
+		return
+	}
+	deliveries, _ := h.store.Deliveries.List(c.Request.Context(), &slug, 50)
+	h.render(c, "source-events", sourceData{
 		Nav:        "sources",
 		Source:     source,
-		Actions:    actions,
 		Deliveries: deliveries,
 		WebhookURL: webhookURL(c, source.Slug),
 	})
@@ -143,7 +200,7 @@ func (h *Handler) UpdateSourceMode(c *gin.Context) {
 		return
 	}
 	actions, _ := h.store.Actions.List(c.Request.Context(), source.ID)
-	h.renderFragment(c, "source", "mode-card", sourceData{
+	h.renderFragment(c, "source-overview", "mode-card", sourceData{
 		Source:  source,
 		Actions: actions,
 	})
@@ -184,7 +241,7 @@ func (h *Handler) UpdateSourceScript(c *gin.Context) {
 
 	actions, _ := h.store.Actions.List(c.Request.Context(), source.ID)
 	deliveries, _ := h.store.Deliveries.List(c.Request.Context(), &slug, 10)
-	h.renderFragment(c, "source", "script-card", sourceData{
+	h.renderFragment(c, "source-script", "script-card", sourceData{
 		Source:        source,
 		Actions:       actions,
 		Deliveries:    deliveries,
@@ -203,12 +260,102 @@ func (h *Handler) ClearSourceScript(c *gin.Context) {
 	}
 	actions, _ := h.store.Actions.List(c.Request.Context(), source.ID)
 	deliveries, _ := h.store.Deliveries.List(c.Request.Context(), &slug, 10)
-	h.renderFragment(c, "source", "script-card", sourceData{
+	h.renderFragment(c, "source-script", "script-card", sourceData{
 		Source:        source,
 		Actions:       actions,
 		Deliveries:    deliveries,
 		ScriptSuccess: "Script cleared",
 	})
+}
+
+func (h *Handler) forwardDeliveryToStream(ctx context.Context, deliveryID uuid.UUID) error {
+	return h.rdb.XAdd(ctx, &redis.XAddArgs{
+		Stream: "deliveries",
+		MaxLen: 10000,
+		Approx: true,
+		Values: map[string]any{
+			"delivery_id": deliveryID.String(),
+			"force":       "1",
+		},
+	}).Err()
+}
+
+func (h *Handler) ForwardDelivery(c *gin.Context) {
+	slug := c.Param("slug")
+	idStr := c.Param("id")
+
+	source, err := h.store.Sources.GetBySlug(c.Request.Context(), slug)
+	if err != nil {
+		c.String(http.StatusNotFound, "Source not found")
+		return
+	}
+
+	deliveryID, err := uuid.Parse(idStr)
+	if err != nil {
+		c.String(http.StatusBadRequest, "Invalid delivery ID")
+		return
+	}
+
+	delivery, err := h.store.Deliveries.GetByID(c.Request.Context(), deliveryID)
+	if err != nil || delivery.SourceID != source.ID {
+		c.String(http.StatusNotFound, "Delivery not found")
+		return
+	}
+
+	if delivery.Status != model.DeliveryRecorded {
+		c.Header("HX-Refresh", "true")
+		c.Status(http.StatusOK)
+		return
+	}
+
+	if err := h.store.Deliveries.UpdateStatus(c.Request.Context(), deliveryID, model.DeliveryPending); err != nil {
+		slog.Error("failed to update delivery status for forward", "error", err, "delivery_id", deliveryID)
+		c.String(http.StatusInternalServerError, "Failed to forward delivery")
+		return
+	}
+
+	if err := h.forwardDeliveryToStream(c.Request.Context(), deliveryID); err != nil {
+		slog.Error("failed to publish forced delivery to stream", "error", err, "delivery_id", deliveryID)
+		_ = h.store.Deliveries.UpdateStatus(c.Request.Context(), deliveryID, model.DeliveryRecorded)
+		c.String(http.StatusInternalServerError, "Failed to forward delivery")
+		return
+	}
+
+	c.Header("HX-Refresh", "true")
+	c.Status(http.StatusOK)
+}
+
+func (h *Handler) ForwardAllRecorded(c *gin.Context) {
+	slug := c.Param("slug")
+
+	if _, err := h.store.Sources.GetBySlug(c.Request.Context(), slug); err != nil {
+		c.String(http.StatusNotFound, "Source not found")
+		return
+	}
+
+	deliveries, err := h.store.Deliveries.List(c.Request.Context(), &slug, 200)
+	if err != nil {
+		slog.Error("failed to list deliveries for forward-all", "error", err, "slug", slug)
+		c.String(http.StatusInternalServerError, "Failed to list deliveries")
+		return
+	}
+
+	for _, d := range deliveries {
+		if d.Status != model.DeliveryRecorded {
+			continue
+		}
+		if err := h.store.Deliveries.UpdateStatus(c.Request.Context(), d.ID, model.DeliveryPending); err != nil {
+			slog.Error("failed to update delivery status for forward-all", "error", err, "delivery_id", d.ID)
+			continue
+		}
+		if err := h.forwardDeliveryToStream(c.Request.Context(), d.ID); err != nil {
+			slog.Error("failed to publish delivery to stream for forward-all", "error", err, "delivery_id", d.ID)
+			_ = h.store.Deliveries.UpdateStatus(c.Request.Context(), d.ID, model.DeliveryRecorded)
+		}
+	}
+
+	c.Header("HX-Refresh", "true")
+	c.Status(http.StatusOK)
 }
 
 func (h *Handler) TestSourceScript(c *gin.Context) {
@@ -217,7 +364,7 @@ func (h *Handler) TestSourceScript(c *gin.Context) {
 	deliveryID := c.PostForm("delivery_id")
 
 	if strings.TrimSpace(deliveryID) == "" {
-		h.renderFragment(c, "source", "script-test-result", scriptTestData{
+		h.renderFragment(c, "source-script", "script-test-result", scriptTestData{
 			Error: "Select a payload to test against",
 		})
 		return
@@ -225,7 +372,7 @@ func (h *Handler) TestSourceScript(c *gin.Context) {
 
 	source, err := h.store.Sources.GetBySlug(c.Request.Context(), slug)
 	if err != nil {
-		h.renderFragment(c, "source", "script-test-result", scriptTestData{
+		h.renderFragment(c, "source-script", "script-test-result", scriptTestData{
 			Error: "Source not found",
 		})
 		return
@@ -233,7 +380,7 @@ func (h *Handler) TestSourceScript(c *gin.Context) {
 
 	did, err := uuid.Parse(deliveryID)
 	if err != nil {
-		h.renderFragment(c, "source", "script-test-result", scriptTestData{
+		h.renderFragment(c, "source-script", "script-test-result", scriptTestData{
 			Error: "Invalid delivery ID",
 		})
 		return
@@ -241,14 +388,14 @@ func (h *Handler) TestSourceScript(c *gin.Context) {
 
 	delivery, err := h.store.Deliveries.GetByID(c.Request.Context(), did)
 	if err != nil || delivery.SourceID != source.ID {
-		h.renderFragment(c, "source", "script-test-result", scriptTestData{
+		h.renderFragment(c, "source-script", "script-test-result", scriptTestData{
 			Error: "Delivery not found for this source",
 		})
 		return
 	}
 
 	if strings.TrimSpace(scriptBody) == "" {
-		h.renderFragment(c, "source", "script-test-result", scriptTestData{
+		h.renderFragment(c, "source-script", "script-test-result", scriptTestData{
 			Error: "Script body is empty",
 		})
 		return
@@ -285,13 +432,13 @@ func (h *Handler) TestSourceScript(c *gin.Context) {
 
 	result, err := script.Run(scriptBody, input)
 	if err != nil {
-		h.renderFragment(c, "source", "script-test-result", scriptTestData{
+		h.renderFragment(c, "source-script", "script-test-result", scriptTestData{
 			Error: err.Error(),
 		})
 		return
 	}
 
-	h.renderFragment(c, "source", "script-test-result", scriptTestData{
+	h.renderFragment(c, "source-script", "script-test-result", scriptTestData{
 		Result: result,
 	})
 }

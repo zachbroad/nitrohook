@@ -12,10 +12,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 	"github.com/zachbroad/nitrohook/internal/config"
 	"github.com/zachbroad/nitrohook/internal/database"
 	"github.com/zachbroad/nitrohook/internal/handler"
+	"github.com/zachbroad/nitrohook/internal/middleware"
 	"github.com/zachbroad/nitrohook/internal/store"
 	"github.com/zachbroad/nitrohook/internal/worker"
 	"github.com/zachbroad/nitrohook/web"
@@ -72,15 +74,29 @@ func main() {
 	sourceH := handler.NewSourceHandler(s)
 	actionH := handler.NewActionHandler(s)
 	deliveryH := handler.NewDeliveryHandler(s)
-	webH := web.NewHandler(s)
+	webH := web.NewHandler(s, rdb)
 
 	// Routes
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(middleware.RequestLogger())
 	r.RedirectFixedPath = true
 	r.RedirectTrailingSlash = true
 
 	r.GET("/healthz", func(c *gin.Context) {
 		c.String(http.StatusOK, ".")
+	})
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	r.GET("/readyz", func(c *gin.Context) {
+		if err := pool.Ping(c.Request.Context()); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "error", "postgres": "down"})
+			return
+		}
+		if err := rdb.Ping(c.Request.Context()).Err(); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "error", "redis": "down"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
 	// Web UI
@@ -90,6 +106,11 @@ func main() {
 	r.GET("/sources", webH.Sources)
 	r.POST("/sources", webH.CreateSource)
 	r.GET("/sources/:slug", webH.SourceDetail)
+	r.GET("/sources/:slug/script", webH.SourceScript)
+	r.GET("/sources/:slug/actions", webH.SourceActions)
+	r.GET("/sources/:slug/events", webH.SourceEvents)
+	r.POST("/sources/:slug/events/forward-all", webH.ForwardAllRecorded)
+	r.POST("/sources/:slug/events/:id/forward", webH.ForwardDelivery)
 	r.POST("/sources/:slug/update", webH.UpdateSource)
 	r.DELETE("/sources/:slug", webH.DeleteSource)
 	r.POST("/sources/:slug/mode", webH.UpdateSourceMode)

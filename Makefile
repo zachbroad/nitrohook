@@ -33,6 +33,9 @@ docker-up:
 docker-down:
 	docker compose down
 
+docker-up-supporting-svc:
+	docker compose up -d postgres redis
+
 migrate-up:
 	migrate -database "$(DATABASE_URL)" -path migrations up
 
@@ -44,4 +47,6 @@ migrate-create:
 	migrate create -ext sql -dir migrations -seq $$name
 
 create-db:
-	psql "postgres://nitrohook:nitrohook@localhost:5432/postgres?sslmode=disable" -c "CREATE DATABASE nitrohook" 2>/dev/null || true
+	psql -d postgres -c "CREATE ROLE nitrohook WITH LOGIN PASSWORD 'nitrohook';" 2>/dev/null || true
+	psql -d postgres -c "CREATE DATABASE nitrohook OWNER nitrohook;" 2>/dev/null || true
+	psql -d nitrohook -c "GRANT ALL ON SCHEMA public TO nitrohook;" 2>/dev/null || true

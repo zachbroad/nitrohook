@@ -15,20 +15,42 @@ type ActionStore struct {
 	pool *pgxpool.Pool
 }
 
-const actionColumns = `id, source_id, type, target_url, script_body, signing_secret, config, is_active, created_at, updated_at`
+// ActionCreateParams holds the fields for creating a new action.
+type ActionCreateParams struct {
+	SourceID        uuid.UUID
+	Type            model.ActionType
+	TargetURL       *string
+	SigningSecret   *string
+	ScriptBody      *string
+	Config          json.RawMessage
+	TransformScript *string
+}
+
+// ActionUpdateParams holds the fields for updating an action.
+// nil fields are left unchanged (via COALESCE in SQL).
+type ActionUpdateParams struct {
+	TargetURL       *string
+	SigningSecret   *string
+	IsActive        *bool
+	ScriptBody      *string
+	Config          json.RawMessage
+	TransformScript *string
+}
+
+const actionColumns = `id, source_id, type, target_url, script_body, signing_secret, config, transform_script, is_active, created_at, updated_at`
 
 func scanAction(scan func(dest ...any) error) (model.Action, error) {
 	var a model.Action
-	err := scan(&a.ID, &a.SourceID, &a.Type, &a.TargetURL, &a.ScriptBody, &a.SigningSecret, &a.Config, &a.IsActive, &a.CreatedAt, &a.UpdatedAt)
+	err := scan(&a.ID, &a.SourceID, &a.Type, &a.TargetURL, &a.ScriptBody, &a.SigningSecret, &a.Config, &a.TransformScript, &a.IsActive, &a.CreatedAt, &a.UpdatedAt)
 	return a, err
 }
 
-func (s *ActionStore) Create(ctx context.Context, sourceID uuid.UUID, actionType model.ActionType, targetURL *string, signingSecret *string, scriptBody *string, config json.RawMessage) (*model.Action, error) {
+func (s *ActionStore) Create(ctx context.Context, p ActionCreateParams) (*model.Action, error) {
 	a, err := scanAction(s.pool.QueryRow(ctx,
-		`INSERT INTO actions (source_id, type, target_url, signing_secret, script_body, config)
-		 VALUES ($1, $2, $3, $4, $5, $6)
+		`INSERT INTO actions (source_id, type, target_url, signing_secret, script_body, config, transform_script)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 RETURNING `+actionColumns,
-		sourceID, actionType, targetURL, signingSecret, scriptBody, config,
+		p.SourceID, p.Type, p.TargetURL, p.SigningSecret, p.ScriptBody, p.Config, p.TransformScript,
 	).Scan)
 	if err != nil {
 		return nil, fmt.Errorf("create action: %w", err)
@@ -46,7 +68,7 @@ func (s *ActionStore) List(ctx context.Context, sourceID uuid.UUID) ([]model.Act
 	}
 	defer rows.Close()
 
-	var actions []model.Action
+	actions := make([]model.Action, 0)
 	for rows.Next() {
 		a, err := scanAction(rows.Scan)
 		if err != nil {
@@ -55,6 +77,12 @@ func (s *ActionStore) List(ctx context.Context, sourceID uuid.UUID) ([]model.Act
 		actions = append(actions, a)
 	}
 	return actions, rows.Err()
+}
+
+func (s *ActionStore) CountBySource(ctx context.Context, sourceID uuid.UUID) (int, error) {
+	var count int
+	err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM actions WHERE source_id = $1`, sourceID).Scan(&count)
+	return count, err
 }
 
 func (s *ActionStore) GetByID(ctx context.Context, id uuid.UUID) (*model.Action, error) {
@@ -68,18 +96,19 @@ func (s *ActionStore) GetByID(ctx context.Context, id uuid.UUID) (*model.Action,
 	return &a, nil
 }
 
-func (s *ActionStore) Update(ctx context.Context, id uuid.UUID, targetURL *string, signingSecret *string, isActive *bool, scriptBody *string, config json.RawMessage) (*model.Action, error) {
+func (s *ActionStore) Update(ctx context.Context, id uuid.UUID, p ActionUpdateParams) (*model.Action, error) {
 	a, err := scanAction(s.pool.QueryRow(ctx,
 		`UPDATE actions SET
-			target_url     = COALESCE($2, target_url),
-			signing_secret = COALESCE($3, signing_secret),
-			is_active      = COALESCE($4, is_active),
-			script_body    = COALESCE($5, script_body),
-			config         = COALESCE($6, config),
-			updated_at     = $7
+			target_url       = COALESCE($2, target_url),
+			signing_secret   = COALESCE($3, signing_secret),
+			is_active        = COALESCE($4, is_active),
+			script_body      = COALESCE($5, script_body),
+			config           = COALESCE($6, config),
+			transform_script = COALESCE($7, transform_script),
+			updated_at       = $8
 		 WHERE id = $1
 		 RETURNING `+actionColumns,
-		id, targetURL, signingSecret, isActive, scriptBody, config, time.Now(),
+		id, p.TargetURL, p.SigningSecret, p.IsActive, p.ScriptBody, p.Config, p.TransformScript, time.Now(),
 	).Scan)
 	if err != nil {
 		return nil, fmt.Errorf("update action: %w", err)
@@ -105,7 +134,7 @@ func (s *ActionStore) ListActiveBySource(ctx context.Context, sourceID uuid.UUID
 	}
 	defer rows.Close()
 
-	var actions []model.Action
+	actions := make([]model.Action, 0)
 	for rows.Next() {
 		a, err := scanAction(rows.Scan)
 		if err != nil {

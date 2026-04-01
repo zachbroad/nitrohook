@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/zachbroad/nitrohook/internal/model"
+	"github.com/zachbroad/nitrohook/internal/store"
 	"github.com/zachbroad/nitrohook/internal/testutil"
 )
 
@@ -93,7 +94,13 @@ func TestActionCRUD(t *testing.T) {
 	config := json.RawMessage(`{"key":"value"}`)
 
 	// Create
-	action, err := s.Actions.Create(ctx, src.ID, model.ActionTypeWebhook, &targetURL, &secret, nil, config)
+	action, err := s.Actions.Create(ctx, store.ActionCreateParams{
+		SourceID:      src.ID,
+		Type:          model.ActionTypeWebhook,
+		TargetURL:     &targetURL,
+		SigningSecret: &secret,
+		Config:        config,
+	})
 	if err != nil {
 		t.Fatalf("create action: %v", err)
 	}
@@ -124,7 +131,7 @@ func TestActionCRUD(t *testing.T) {
 
 	// Toggle active
 	isActive := false
-	updated, err := s.Actions.Update(ctx, action.ID, nil, nil, &isActive, nil, nil)
+	updated, err := s.Actions.Update(ctx, action.ID, store.ActionUpdateParams{IsActive: &isActive})
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
@@ -212,7 +219,7 @@ func TestAttemptTracking(t *testing.T) {
 
 	src, _ := s.Sources.Create(ctx, "Attempt Test", "attempt-test", "active", nil)
 	targetURL := "https://example.com"
-	action, _ := s.Actions.Create(ctx, src.ID, model.ActionTypeWebhook, &targetURL, nil, nil, nil)
+	action, _ := s.Actions.Create(ctx, store.ActionCreateParams{SourceID: src.ID, Type: model.ActionTypeWebhook, TargetURL: &targetURL})
 	del, _ := s.Deliveries.Create(ctx, src.ID, "attempt-idem", json.RawMessage(`{}`), json.RawMessage(`{}`))
 
 	// Create attempt

@@ -34,8 +34,9 @@ type Action struct {
 	TargetURL     *string         `json:"target_url,omitempty"`
 	ScriptBody    *string         `json:"script_body,omitempty"`
 	SigningSecret *string         `json:"signing_secret,omitempty"`
-	Config        json.RawMessage `json:"config,omitempty"`
-	IsActive      bool            `json:"is_active"`
+	Config          json.RawMessage `json:"config,omitempty"`
+	TransformScript *string         `json:"transform_script,omitempty"`
+	IsActive        bool            `json:"is_active"`
 	CreatedAt     time.Time       `json:"created_at"`
 	UpdatedAt     time.Time       `json:"updated_at"`
 }

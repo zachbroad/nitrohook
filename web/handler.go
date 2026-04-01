@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/zachbroad/nitrohook/internal/model"
 	"github.com/zachbroad/nitrohook/internal/script"
 	"github.com/zachbroad/nitrohook/internal/store"
@@ -91,15 +92,17 @@ var funcMap = template.FuncMap{
 
 type Handler struct {
 	store     *store.Store
+	rdb       *redis.Client
 	templates map[string]*template.Template
 }
 
-func NewHandler(s *store.Store) *Handler {
+func NewHandler(s *store.Store, rdb *redis.Client) *Handler {
 	h := &Handler{
 		store:     s,
+		rdb:       rdb,
 		templates: make(map[string]*template.Template),
 	}
-	for _, page := range []string{"sources", "source", "deliveries", "delivery"} {
+	for _, page := range []string{"sources", "source-overview", "source-script", "source-actions", "source-events", "deliveries", "delivery"} {
 		h.templates[page] = template.Must(
 			template.New("").Funcs(funcMap).ParseFS(templateFS,
 				"templates/layout.html",
@@ -127,9 +130,10 @@ func (h *Handler) renderFragment(c *gin.Context, page string, fragment string, d
 // Page data types
 
 type sourcesData struct {
-	Nav     string
-	Sources []model.Source
-	Error   string
+	Nav          string
+	Sources      []model.Source
+	ActionCounts map[uuid.UUID]int
+	Error        string
 }
 
 type sourceData struct {
@@ -138,6 +142,7 @@ type sourceData struct {
 	Actions       []model.Action
 	Deliveries    []model.Delivery
 	WebhookURL    string
+	ActiveTab     string
 	Error         string
 	ScriptError   string
 	ScriptSuccess string

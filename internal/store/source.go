@@ -48,7 +48,7 @@ func (s *SourceStore) List(ctx context.Context) ([]model.Source, error) {
 	}
 	defer rows.Close()
 
-	var sources []model.Source
+	sources := make([]model.Source, 0)
 	for rows.Next() {
 		var src model.Source
 		if err := rows.Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.CreatedAt, &src.UpdatedAt); err != nil {

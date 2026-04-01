@@ -7,9 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"github.com/zachbroad/nitrohook/internal/metrics"
 	"github.com/zachbroad/nitrohook/internal/model"
 	"github.com/zachbroad/nitrohook/internal/store"
 )
@@ -24,6 +27,7 @@ func NewWebhookHandler(s *store.Store, rdb *redis.Client) *WebhookHandler {
 }
 
 func (h *WebhookHandler) Ingest(c *gin.Context) {
+	start := time.Now()
 	sourceSlug := c.Param("sourceSlug")
 
 	src, err := h.store.Sources.GetBySlug(c.Request.Context(), sourceSlug)
@@ -45,10 +49,13 @@ func (h *WebhookHandler) Ingest(c *gin.Context) {
 
 	// Extract relevant headers
 	headerMap := map[string]string{}
-	for _, key := range []string{"Content-Type", "X-Request-ID", "X-Webhook-ID"} {
+	for _, key := range []string{"Content-Type", "X-Webhook-ID"} {
 		if v := c.GetHeader(key); v != "" {
 			headerMap[key] = v
 		}
+	}
+	if requestID, ok := c.Get("request_id"); ok {
+		headerMap["X-Request-ID"] = requestID.(string)
 	}
 	headersJSON, _ := json.Marshal(headerMap)
 
@@ -82,6 +89,9 @@ func (h *WebhookHandler) Ingest(c *gin.Context) {
 		slog.Error("failed to publish to redis stream", "error", err, "delivery_id", delivery.ID)
 		// Delivery is in Postgres with status=pending, catch-up poll will handle it
 	}
+
+	metrics.WebhooksReceived.WithLabelValues(sourceSlug).Inc()
+	metrics.IngestDuration.Observe(time.Since(start).Seconds())
 
 	c.JSON(http.StatusAccepted, gin.H{
 		"delivery_id": delivery.ID,

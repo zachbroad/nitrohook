@@ -16,10 +16,11 @@ const (
 )
 
 var (
-	ErrScriptTooLarge = errors.New("script exceeds 64KB limit")
-	ErrScriptTimeout  = errors.New("script execution timed out")
-	ErrNoTransform    = errors.New("script must define a 'transform' function")
-	ErrNoProcess      = errors.New("script must define a 'process' function")
+	ErrScriptTooLarge    = errors.New("script exceeds 64KB limit")
+	ErrScriptTimeout     = errors.New("script execution timed out")
+	ErrNoTransform       = errors.New("script must define a 'transform' function")
+	ErrNoProcess         = errors.New("script must define a 'process' function")
+	ErrNoActionTransform = errors.New("script must define a 'transform' function")
 )
 
 // ActionRef is a lightweight action reference passed into/out of scripts.
@@ -43,45 +44,21 @@ type TransformResult struct {
 	Dropped bool              `json:"dropped"`
 }
 
-// Validate checks that the script compiles and exports a 'transform' function.
-func Validate(scriptBody string) error {
-	if len(scriptBody) > maxScriptSize {
-		return ErrScriptTooLarge
-	}
-
-	vm := goja.New()
-	_, err := vm.RunString(scriptBody)
-	if err != nil {
-		return fmt.Errorf("script compilation error: %w", err)
-	}
-
-	fn := vm.Get("transform")
-	if fn == nil || fn == goja.Undefined() || fn == goja.Null() {
-		return ErrNoTransform
-	}
-	if _, ok := goja.AssertFunction(fn); !ok {
-		return ErrNoTransform
-	}
-
-	return nil
-}
-
-// Run executes the transform function with the given input.
-// Returns nil result with Dropped=true if the script returns null/undefined.
-func Run(scriptBody string, input TransformInput) (result *TransformResult, err error) {
+// runVM compiles scriptBody, calls the named function with arg, and returns the JS value.
+// missingErr is returned when the function is not found/not callable.
+// Handles size check, timeout, panic recovery, and compilation errors.
+func runVM(scriptBody, fnName string, missingErr error, arg any) (ret goja.Value, err error) {
 	if len(scriptBody) > maxScriptSize {
 		return nil, ErrScriptTooLarge
 	}
 
-	// Recover from goja panics (e.g., from vm.Interrupt)
 	defer func() {
 		if r := recover(); r != nil {
-			if interrupted, ok := r.(*goja.InterruptedError); ok {
-				_ = interrupted
-				result = nil
+			if _, ok := r.(*goja.InterruptedError); ok {
+				ret = nil
 				err = ErrScriptTimeout
 			} else {
-				result = nil
+				ret = nil
 				err = fmt.Errorf("script panic: %v", r)
 			}
 		}
@@ -89,28 +66,62 @@ func Run(scriptBody string, input TransformInput) (result *TransformResult, err 
 
 	vm := goja.New()
 
-	// Set up timeout
 	timer := time.AfterFunc(execTimeout, func() {
 		vm.Interrupt("timeout")
 	})
 	defer timer.Stop()
 
-	_, err = vm.RunString(scriptBody)
-	if err != nil {
+	if _, err = vm.RunString(scriptBody); err != nil {
 		return nil, fmt.Errorf("script compilation error: %w", err)
 	}
 
-	transformFn := vm.Get("transform")
-	if transformFn == nil || transformFn == goja.Undefined() || transformFn == goja.Null() {
-		return nil, ErrNoTransform
+	fn := vm.Get(fnName)
+	if fn == nil || fn == goja.Undefined() || fn == goja.Null() {
+		return nil, missingErr
 	}
-
-	callable, ok := goja.AssertFunction(transformFn)
+	callable, ok := goja.AssertFunction(fn)
 	if !ok {
-		return nil, ErrNoTransform
+		return nil, missingErr
 	}
 
-	// Build the event object for JS
+	ret, err = callable(goja.Undefined(), vm.ToValue(arg))
+	if err != nil {
+		var interrupted *goja.InterruptedError
+		if errors.As(err, &interrupted) {
+			return nil, ErrScriptTimeout
+		}
+		return nil, fmt.Errorf("script execution error: %w", err)
+	}
+	return ret, nil
+}
+
+// validateScript checks that the script compiles and exports the named function.
+func validateScript(scriptBody, fnName string, missingErr error) error {
+	if len(scriptBody) > maxScriptSize {
+		return ErrScriptTooLarge
+	}
+	vm := goja.New()
+	if _, err := vm.RunString(scriptBody); err != nil {
+		return fmt.Errorf("script compilation error: %w", err)
+	}
+	fn := vm.Get(fnName)
+	if fn == nil || fn == goja.Undefined() || fn == goja.Null() {
+		return missingErr
+	}
+	if _, ok := goja.AssertFunction(fn); !ok {
+		return missingErr
+	}
+	return nil
+}
+
+// Validate checks that the script compiles and exports a 'transform' function.
+func Validate(scriptBody string) error {
+	return validateScript(scriptBody, "transform", ErrNoTransform)
+}
+
+// Run executes the transform function with the given input.
+// Returns nil result with Dropped=true if the script returns null/undefined.
+func Run(scriptBody string, input TransformInput) (*TransformResult, error) {
 	eventObj := map[string]any{
 		"payload": input.Payload,
 		"headers": input.Headers,
@@ -124,23 +135,15 @@ func Run(scriptBody string, input TransformInput) (result *TransformResult, err 
 	}
 	eventObj["actions"] = actionsForJS
 
-	arg := vm.ToValue(eventObj)
-	ret, err := callable(goja.Undefined(), arg)
+	ret, err := runVM(scriptBody, "transform", ErrNoTransform, eventObj)
 	if err != nil {
-		// Check if this was a timeout interrupt
-		var interrupted *goja.InterruptedError
-		if errors.As(err, &interrupted) {
-			return nil, ErrScriptTimeout
-		}
-		return nil, fmt.Errorf("script execution error: %w", err)
+		return nil, err
 	}
 
-	// null/undefined return means drop the event
 	if ret == nil || ret == goja.Undefined() || ret == goja.Null() {
 		return &TransformResult{Dropped: true}, nil
 	}
 
-	// Marshal the result back through JSON to get clean Go types
 	exported := ret.Export()
 	jsonBytes, err := json.Marshal(exported)
 	if err != nil {
@@ -148,8 +151,8 @@ func Run(scriptBody string, input TransformInput) (result *TransformResult, err 
 	}
 
 	var raw struct {
-		Payload map[string]any         `json:"payload"`
-		Headers map[string]interface{} `json:"headers"`
+		Payload map[string]any `json:"payload"`
+		Headers map[string]any `json:"headers"`
 		Actions []struct {
 			ID        string `json:"id"`
 			TargetURL string `json:"target_url"`
@@ -159,18 +162,16 @@ func Run(scriptBody string, input TransformInput) (result *TransformResult, err 
 		return nil, fmt.Errorf("failed to unmarshal script result: %w", err)
 	}
 
-	// Convert headers to map[string]string
 	headers := make(map[string]string, len(raw.Headers))
 	for k, v := range raw.Headers {
 		headers[k] = fmt.Sprintf("%v", v)
 	}
 
-	// Convert actions
 	actions := make([]ActionRef, 0, len(raw.Actions))
 	for _, a := range raw.Actions {
 		id, err := uuid.Parse(a.ID)
 		if err != nil {
-			continue // skip invalid action IDs
+			continue
 		}
 		actions = append(actions, ActionRef{ID: id, TargetURL: a.TargetURL})
 	}
@@ -184,92 +185,82 @@ func Run(scriptBody string, input TransformInput) (result *TransformResult, err 
 
 // ValidateAction checks that the script compiles and exports a 'process' function.
 func ValidateAction(scriptBody string) error {
-	if len(scriptBody) > maxScriptSize {
-		return ErrScriptTooLarge
-	}
-
-	vm := goja.New()
-	_, err := vm.RunString(scriptBody)
-	if err != nil {
-		return fmt.Errorf("script compilation error: %w", err)
-	}
-
-	fn := vm.Get("process")
-	if fn == nil || fn == goja.Undefined() || fn == goja.Null() {
-		return ErrNoProcess
-	}
-	if _, ok := goja.AssertFunction(fn); !ok {
-		return ErrNoProcess
-	}
-
-	return nil
+	return validateScript(scriptBody, "process", ErrNoProcess)
 }
 
 // RunAction executes a per-action JS script's process(event) function.
 // Returns the result as a JSON string.
-func RunAction(scriptBody string, payload map[string]any, headers map[string]string) (result string, err error) {
-	if len(scriptBody) > maxScriptSize {
-		return "", ErrScriptTooLarge
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			if _, ok := r.(*goja.InterruptedError); ok {
-				result = ""
-				err = ErrScriptTimeout
-			} else {
-				result = ""
-				err = fmt.Errorf("script panic: %v", r)
-			}
-		}
-	}()
-
-	vm := goja.New()
-
-	timer := time.AfterFunc(execTimeout, func() {
-		vm.Interrupt("timeout")
-	})
-	defer timer.Stop()
-
-	_, err = vm.RunString(scriptBody)
-	if err != nil {
-		return "", fmt.Errorf("script compilation error: %w", err)
-	}
-
-	processFn := vm.Get("process")
-	if processFn == nil || processFn == goja.Undefined() || processFn == goja.Null() {
-		return "", ErrNoProcess
-	}
-
-	callable, ok := goja.AssertFunction(processFn)
-	if !ok {
-		return "", ErrNoProcess
-	}
-
+func RunAction(scriptBody string, payload map[string]any, headers map[string]string) (string, error) {
 	eventObj := map[string]any{
 		"payload": payload,
 		"headers": headers,
 	}
 
-	arg := vm.ToValue(eventObj)
-	ret, err := callable(goja.Undefined(), arg)
+	ret, err := runVM(scriptBody, "process", ErrNoProcess, eventObj)
 	if err != nil {
-		var interrupted *goja.InterruptedError
-		if errors.As(err, &interrupted) {
-			return "", ErrScriptTimeout
-		}
-		return "", fmt.Errorf("script execution error: %w", err)
+		return "", err
 	}
 
 	if ret == nil || ret == goja.Undefined() || ret == goja.Null() {
 		return "null", nil
 	}
 
-	exported := ret.Export()
-	jsonBytes, err := json.Marshal(exported)
+	jsonBytes, err := json.Marshal(ret.Export())
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal action script result: %w", err)
 	}
-
 	return string(jsonBytes), nil
+}
+
+// ActionTransformResult is the output of a per-action transform function.
+type ActionTransformResult struct {
+	Payload map[string]any    `json:"payload"`
+	Headers map[string]string `json:"headers"`
+	Skipped bool              `json:"skipped"`
+}
+
+// ValidateActionTransform checks that the script compiles and exports a 'transform' function.
+func ValidateActionTransform(scriptBody string) error {
+	return validateScript(scriptBody, "transform", ErrNoActionTransform)
+}
+
+// RunActionTransform executes a per-action transform(event) function.
+// Returns nil with Skipped=true if the script returns null/undefined (skip this action).
+func RunActionTransform(scriptBody string, payload map[string]any, headers map[string]string) (*ActionTransformResult, error) {
+	eventObj := map[string]any{
+		"payload": payload,
+		"headers": headers,
+	}
+
+	ret, err := runVM(scriptBody, "transform", ErrNoActionTransform, eventObj)
+	if err != nil {
+		return nil, err
+	}
+
+	if ret == nil || ret == goja.Undefined() || ret == goja.Null() {
+		return &ActionTransformResult{Skipped: true}, nil
+	}
+
+	jsonBytes, err := json.Marshal(ret.Export())
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal transform result: %w", err)
+	}
+
+	var raw struct {
+		Payload map[string]any `json:"payload"`
+		Headers map[string]any `json:"headers"`
+	}
+	if err := json.Unmarshal(jsonBytes, &raw); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal transform result: %w", err)
+	}
+
+	hdrs := make(map[string]string, len(raw.Headers))
+	for k, v := range raw.Headers {
+		hdrs[k] = fmt.Sprintf("%v", v)
+	}
+
+	return &ActionTransformResult{
+		Payload: raw.Payload,
+		Headers: hdrs,
+	}, nil
 }

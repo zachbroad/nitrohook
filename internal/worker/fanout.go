@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/zachbroad/nitrohook/internal/dispatch"
+	"github.com/zachbroad/nitrohook/internal/metrics"
 	"github.com/zachbroad/nitrohook/internal/model"
 	"github.com/zachbroad/nitrohook/internal/script"
 	"github.com/zachbroad/nitrohook/internal/store"
@@ -107,7 +108,8 @@ func (w *FanoutWorker) consumeStream(ctx context.Context, consumer string) {
 					continue
 				}
 
-				w.processDelivery(ctx, deliveryID)
+				force := msg.Values["force"] == "1"
+				w.processDelivery(ctx, deliveryID, force)
 				w.rdb.XAck(ctx, streamName, consumerGroup, msg.ID)
 				w.rdb.XDel(ctx, streamName, msg.ID)
 			}
@@ -115,15 +117,21 @@ func (w *FanoutWorker) consumeStream(ctx context.Context, consumer string) {
 	}
 }
 
-func (w *FanoutWorker) processDelivery(ctx context.Context, deliveryID uuid.UUID) {
+func (w *FanoutWorker) processDelivery(ctx context.Context, deliveryID uuid.UUID, force bool) {
 	delivery, err := w.store.Deliveries.GetByID(ctx, deliveryID)
 	if err != nil {
 		slog.Error("failed to get delivery", "error", err, "delivery_id", deliveryID)
 		return
 	}
 
-	if delivery.Status != model.DeliveryPending {
-		return
+	if force {
+		if delivery.Status != model.DeliveryPending && delivery.Status != model.DeliveryRecorded {
+			return
+		}
+	} else {
+		if delivery.Status != model.DeliveryPending {
+			return
+		}
 	}
 
 	src, err := w.store.Sources.GetByID(ctx, delivery.SourceID)
@@ -132,7 +140,7 @@ func (w *FanoutWorker) processDelivery(ctx context.Context, deliveryID uuid.UUID
 		return
 	}
 
-	if src.Mode == "record" {
+	if !force && src.Mode == "record" {
 		w.store.Deliveries.UpdateStatus(ctx, deliveryID, model.DeliveryRecorded)
 		return
 	}
@@ -204,17 +212,16 @@ func (w *FanoutWorker) processDelivery(ctx context.Context, deliveryID uuid.UUID
 		return
 	}
 
-	allSuccess := true
 	for _, action := range activeActions {
-		success := w.dispatchAction(ctx, delivery, &action, 1, payload, headers)
-		if !success {
-			allSuccess = false
+		p, h, skipped := w.applyActionTransform(&action, payload, headers)
+		if skipped {
+			slog.Info("action transform skipped action", "delivery_id", deliveryID, "action_id", action.ID)
+			continue
 		}
+		w.dispatchAction(ctx, delivery, &action, 1, p, h)
 	}
 
-	if allSuccess {
-		w.store.Deliveries.UpdateStatus(ctx, deliveryID, model.DeliveryCompleted)
-	}
+	w.rollUpDeliveryStatus(ctx, deliveryID)
 }
 
 func (w *FanoutWorker) dispatchAction(ctx context.Context, delivery *model.Delivery, action *model.Action, attemptNumber int, payload, headers json.RawMessage) bool {
@@ -231,15 +238,19 @@ func (w *FanoutWorker) dispatchAction(ctx context.Context, delivery *model.Deliv
 		return false
 	}
 
+	dispatchStart := time.Now()
 	result := d.Dispatch(ctx, action, delivery.ID.String(), payload, headers)
+	metrics.DispatchDuration.Observe(time.Since(dispatchStart).Seconds())
 
 	if result.Success {
 		w.store.Deliveries.UpdateAttempt(ctx, attempt.ID, model.AttemptSuccess, result.ResponseStatus, result.ResponseBody, nil, nil)
+		metrics.DeliveriesDispatched.WithLabelValues(string(action.Type), "success").Inc()
 		return true
 	}
 
 	nextRetry := w.nextRetryTime(attemptNumber)
 	w.store.Deliveries.UpdateAttempt(ctx, attempt.ID, model.AttemptFailed, result.ResponseStatus, result.ResponseBody, result.ErrorMessage, nextRetry)
+	metrics.DeliveriesDispatched.WithLabelValues(string(action.Type), "failed").Inc()
 	return false
 }
 
@@ -251,6 +262,11 @@ func (w *FanoutWorker) dispatchToAction(ctx context.Context, delivery *model.Del
 	}
 	if delivery.TransformedHeaders != nil {
 		headers = delivery.TransformedHeaders
+	}
+	payload, headers, skipped := w.applyActionTransform(action, payload, headers)
+	if skipped {
+		slog.Info("action transform skipped action on retry", "delivery_id", delivery.ID, "action_id", action.ID)
+		return true
 	}
 	return w.dispatchAction(ctx, delivery, action, attemptNumber, payload, headers)
 }
@@ -282,6 +298,48 @@ func (w *FanoutWorker) runTransform(scriptBody string, delivery *model.Delivery,
 	}
 
 	return script.Run(scriptBody, input)
+}
+
+func (w *FanoutWorker) applyActionTransform(action *model.Action, payload, headers json.RawMessage) (json.RawMessage, json.RawMessage, bool) {
+	if action.TransformScript == nil || *action.TransformScript == "" {
+		return payload, headers, false
+	}
+
+	var payloadMap map[string]any
+	if err := json.Unmarshal(payload, &payloadMap); err != nil {
+		slog.Error("action transform: failed to unmarshal payload, using original", "error", err, "action_id", action.ID)
+		return payload, headers, false
+	}
+
+	var headersMap map[string]string
+	if err := json.Unmarshal(headers, &headersMap); err != nil {
+		slog.Error("action transform: failed to unmarshal headers, using original", "error", err, "action_id", action.ID)
+		return payload, headers, false
+	}
+
+	result, err := script.RunActionTransform(*action.TransformScript, payloadMap, headersMap)
+	if err != nil {
+		slog.Error("action transform: script failed, using original payload", "error", err, "action_id", action.ID)
+		return payload, headers, false
+	}
+
+	if result.Skipped {
+		return nil, nil, true
+	}
+
+	newPayload, err := json.Marshal(result.Payload)
+	if err != nil {
+		slog.Error("action transform: failed to marshal result payload, using original", "error", err, "action_id", action.ID)
+		return payload, headers, false
+	}
+
+	newHeaders, err := json.Marshal(result.Headers)
+	if err != nil {
+		slog.Error("action transform: failed to marshal result headers, using original", "error", err, "action_id", action.ID)
+		return payload, headers, false
+	}
+
+	return newPayload, newHeaders, false
 }
 
 func filterActions(all []model.Action, kept []script.ActionRef) []model.Action {
@@ -326,9 +384,10 @@ func (w *FanoutWorker) pollPending(ctx context.Context) {
 				slog.Error("poll pending error", "error", err)
 				continue
 			}
+			metrics.PendingDeliveries.Set(float64(len(deliveries)))
 			for _, d := range deliveries {
 				slog.Info("catch-up: processing pending delivery", "delivery_id", d.ID)
-				w.processDelivery(ctx, d.ID)
+				w.processDelivery(ctx, d.ID, false)
 			}
 		}
 	}
@@ -348,6 +407,7 @@ func (w *FanoutWorker) pollRetries(ctx context.Context) {
 				slog.Error("poll retries error", "error", err)
 				continue
 			}
+			metrics.RetryableAttempts.Set(float64(len(attempts)))
 			for _, a := range attempts {
 				w.retryAttempt(ctx, &a)
 			}
@@ -369,15 +429,12 @@ func (w *FanoutWorker) retryAttempt(ctx context.Context, prev *model.DeliveryAtt
 	}
 
 	nextAttempt := prev.AttemptNumber + 1
-	success := w.dispatchToAction(ctx, delivery, action, nextAttempt)
+	w.dispatchToAction(ctx, delivery, action, nextAttempt)
 
+	// Clear retry schedule on the previous attempt now that we've retried it
 	w.store.Deliveries.UpdateAttempt(ctx, prev.ID, model.AttemptFailed, prev.ResponseStatus, prev.ResponseBody, prev.ErrorMessage, nil)
 
-	if success {
-		w.rollUpDeliveryStatus(ctx, delivery.ID)
-	} else if nextAttempt >= w.maxRetries {
-		w.store.Deliveries.UpdateStatus(ctx, delivery.ID, model.DeliveryFailed)
-	}
+	w.rollUpDeliveryStatus(ctx, delivery.ID)
 }
 
 func (w *FanoutWorker) rollUpDeliveryStatus(ctx context.Context, deliveryID uuid.UUID) {
@@ -391,17 +448,46 @@ func (w *FanoutWorker) rollUpDeliveryStatus(ctx context.Context, deliveryID uuid
 		return
 	}
 
-	allDone := true
-	for _, action := range actions {
-		maxAttempt, err := w.store.Deliveries.GetMaxAttemptNumber(ctx, deliveryID, action.ID)
-		if err != nil || maxAttempt == 0 {
-			allDone = false
-			continue
-		}
-		_ = maxAttempt
+	attempts, err := w.store.Deliveries.ListAttemptsByDelivery(ctx, deliveryID)
+	if err != nil {
+		return
 	}
 
-	if allDone {
+	// Build map of actionID → latest attempt (highest attempt number)
+	latest := make(map[uuid.UUID]*model.DeliveryAttempt, len(actions))
+	for i := range attempts {
+		a := &attempts[i]
+		if prev, ok := latest[a.ActionID]; !ok || a.AttemptNumber > prev.AttemptNumber {
+			latest[a.ActionID] = a
+		}
+	}
+
+	anyFailed := false
+	for _, action := range actions {
+		att, ok := latest[action.ID]
+		if !ok {
+			// No attempt yet for this action — still in progress
+			return
+		}
+		switch att.Status {
+		case model.AttemptSuccess:
+			continue
+		case model.AttemptFailed:
+			if att.AttemptNumber >= w.maxRetries {
+				anyFailed = true
+			} else {
+				// Still has retries remaining — not terminal
+				return
+			}
+		default:
+			// Pending or unknown — not terminal
+			return
+		}
+	}
+
+	if anyFailed {
+		w.store.Deliveries.UpdateStatus(ctx, deliveryID, model.DeliveryFailed)
+	} else {
 		w.store.Deliveries.UpdateStatus(ctx, deliveryID, model.DeliveryCompleted)
 	}
 }

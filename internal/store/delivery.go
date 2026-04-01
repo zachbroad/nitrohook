@@ -64,7 +64,7 @@ func (s *DeliveryStore) List(ctx context.Context, sourceSlug *string, limit int)
 	}
 	defer rows.Close()
 
-	var deliveries []model.Delivery
+	deliveries := make([]model.Delivery, 0)
 	for rows.Next() {
 		var d model.Delivery
 		if err := rows.Scan(&d.ID, &d.SourceID, &d.IdempotencyKey, &d.Headers, &d.Payload, &d.Status, &d.ReceivedAt, &d.TransformedPayload, &d.TransformedHeaders); err != nil {
@@ -105,7 +105,7 @@ func (s *DeliveryStore) ListPending(ctx context.Context, limit int) ([]model.Del
 	}
 	defer rows.Close()
 
-	var deliveries []model.Delivery
+	deliveries := make([]model.Delivery, 0)
 	for rows.Next() {
 		var d model.Delivery
 		if err := rows.Scan(&d.ID, &d.SourceID, &d.IdempotencyKey, &d.Headers, &d.Payload, &d.Status, &d.ReceivedAt, &d.TransformedPayload, &d.TransformedHeaders); err != nil {
@@ -162,7 +162,7 @@ func (s *DeliveryStore) ListRetryableAttempts(ctx context.Context, limit int) ([
 	}
 	defer rows.Close()
 
-	var attempts []model.DeliveryAttempt
+	attempts := make([]model.DeliveryAttempt, 0)
 	for rows.Next() {
 		var a model.DeliveryAttempt
 		if err := rows.Scan(&a.ID, &a.DeliveryID, &a.ActionID, &a.AttemptNumber, &a.Status, &a.ResponseStatus, &a.ResponseBody, &a.ErrorMessage, &a.NextRetryAt, &a.CreatedAt); err != nil {
@@ -186,7 +186,7 @@ func (s *DeliveryStore) ListAttemptsByDelivery(ctx context.Context, deliveryID u
 	}
 	defer rows.Close()
 
-	var attempts []model.DeliveryAttempt
+	attempts := make([]model.DeliveryAttempt, 0)
 	for rows.Next() {
 		var a model.DeliveryAttempt
 		if err := rows.Scan(&a.ID, &a.DeliveryID, &a.ActionID, &a.AttemptNumber, &a.Status, &a.ResponseStatus, &a.ResponseBody, &a.ErrorMessage, &a.NextRetryAt, &a.CreatedAt); err != nil {

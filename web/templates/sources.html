@@ -11,13 +11,14 @@
 <div class="card">
   {{if .Sources}}
   <table>
-    <thead><tr><th>Name</th><th>Slug</th><th>Mode</th><th>Created</th></tr></thead>
+    <thead><tr><th>Name</th><th>Slug</th><th>Mode</th><th>Actions</th><th>Created</th></tr></thead>
     <tbody>
       {{range .Sources}}
       <tr>
         <td><a href="/sources/{{.Slug}}">{{.Name}}</a></td>
         <td><code>{{.Slug}}</code></td>
         <td><span class="badge badge-{{.Mode}}">{{.Mode}}</span></td>
+        <td><a href="/sources/{{.Slug}}?tab=actions">{{index $.ActionCounts .ID}}</a></td>
         <td>{{formatTime .CreatedAt}}</td>
       </tr>
       {{end}}

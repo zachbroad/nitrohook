@@ -1,0 +1,54 @@
+{{define "content"}}
+<div class="breadcrumb"><a href="/sources">Sources</a> / {{.Source.Name}}</div>
+<div class="header-row">
+  <h1>{{.Source.Name}}</h1>
+  <button class="btn btn-danger btn-sm"
+    hx-delete="/sources/{{.Source.Slug}}"
+    hx-confirm="Delete this source and all its actions?">Delete Source</button>
+</div>
+
+<div class="tab-bar">
+  <a class="tab-btn tab-active" href="/sources/{{.Source.Slug}}">Overview</a>
+  <a class="tab-btn" href="/sources/{{.Source.Slug}}/script">Script</a>
+  <a class="tab-btn" href="/sources/{{.Source.Slug}}/actions">Actions</a>
+  <a class="tab-btn" href="/sources/{{.Source.Slug}}/events">Events</a>
+</div>
+
+<div class="card">
+  <dl class="meta-grid">
+    <dt>ID</dt><dd><code>{{.Source.ID}}</code></dd>
+    <dt>Slug</dt><dd><code>{{.Source.Slug}}</code></dd>
+    <dt>Webhook URL</dt><dd><code>{{.WebhookURL}}</code></dd>
+    <dt>Created</dt><dd>{{formatTime .Source.CreatedAt}}</dd>
+    <dt>Updated</dt><dd>{{formatTime .Source.UpdatedAt}}</dd>
+  </dl>
+  <h2>Edit Name</h2>
+  <form action="/sources/{{.Source.Slug}}/update" method="POST" class="form-inline">
+    <input type="text" name="name" value="{{.Source.Name}}" style="flex:1;min-width:200px" required>
+    <button type="submit" class="btn btn-primary btn-sm">Update</button>
+  </form>
+</div>
+
+{{template "mode-card" .}}
+{{end}}
+
+{{define "mode-card"}}
+<div class="card" id="mode-card">
+  <h2>Mode</h2>
+  <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem">
+    <strong>Record</strong> captures webhooks without forwarding. <strong>Active</strong> runs the transform pipeline and fans out to actions.
+  </p>
+  <div class="mode-switch">
+    <button class="btn btn-sm {{if eq .Source.Mode "record"}}active-mode mode-record{{end}}"
+      hx-post="/sources/{{.Source.Slug}}/mode"
+      hx-vals='{"mode":"record"}'
+      hx-target="#mode-card"
+      hx-swap="outerHTML">Record</button>
+    <button class="btn btn-sm {{if eq .Source.Mode "active"}}active-mode mode-active{{end}}"
+      hx-post="/sources/{{.Source.Slug}}/mode"
+      hx-vals='{"mode":"active"}'
+      hx-target="#mode-card"
+      hx-swap="outerHTML">Active</button>
+  </div>
+</div>
+{{end}}

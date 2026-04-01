@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/zachbroad/nitrohook/internal/dispatch"
 	"github.com/zachbroad/nitrohook/internal/model"
+	"github.com/zachbroad/nitrohook/internal/script"
 	"github.com/zachbroad/nitrohook/internal/store"
 )
 
@@ -19,16 +20,18 @@ func NewActionHandler(s *store.Store) *ActionHandler {
 }
 
 type createActionRequest struct {
-	Type          string  `json:"type"`
-	TargetURL     *string `json:"target_url,omitempty"`
-	SigningSecret *string `json:"signing_secret,omitempty"`
-	ScriptBody    *string `json:"script_body,omitempty"`
+	Type            string  `json:"type"`
+	TargetURL       *string `json:"target_url,omitempty"`
+	SigningSecret   *string `json:"signing_secret,omitempty"`
+	ScriptBody      *string `json:"script_body,omitempty"`
+	TransformScript *string `json:"transform_script,omitempty"`
 }
 
 type updateActionRequest struct {
-	TargetURL     *string `json:"target_url,omitempty"`
-	SigningSecret *string `json:"signing_secret,omitempty"`
-	IsActive      *bool   `json:"is_active,omitempty"`
+	TargetURL       *string `json:"target_url,omitempty"`
+	SigningSecret   *string `json:"signing_secret,omitempty"`
+	IsActive        *bool   `json:"is_active,omitempty"`
+	TransformScript *string `json:"transform_script,omitempty"`
 }
 
 func (h *ActionHandler) Create(c *gin.Context) {
@@ -69,7 +72,21 @@ func (h *ActionHandler) Create(c *gin.Context) {
 		return
 	}
 
-	action, err := h.store.Actions.Create(c.Request.Context(), src.ID, actionType, req.TargetURL, req.SigningSecret, req.ScriptBody, nil)
+	if req.TransformScript != nil && *req.TransformScript != "" {
+		if err := script.ValidateActionTransform(*req.TransformScript); err != nil {
+			c.String(http.StatusBadRequest, "invalid transform script: %s", err.Error())
+			return
+		}
+	}
+
+	action, err := h.store.Actions.Create(c.Request.Context(), store.ActionCreateParams{
+		SourceID:        src.ID,
+		Type:            actionType,
+		TargetURL:       req.TargetURL,
+		SigningSecret:   req.SigningSecret,
+		ScriptBody:      req.ScriptBody,
+		TransformScript: req.TransformScript,
+	})
 	if err != nil {
 		c.String(http.StatusInternalServerError, "failed to create action")
 		return
@@ -90,10 +107,6 @@ func (h *ActionHandler) List(c *gin.Context) {
 	actions, err := h.store.Actions.List(c.Request.Context(), src.ID)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "failed to list actions")
-		return
-	}
-	if actions == nil {
-		c.Data(http.StatusOK, "application/json", []byte("[]"))
 		return
 	}
 	c.JSON(http.StatusOK, actions)
@@ -128,7 +141,19 @@ func (h *ActionHandler) Update(c *gin.Context) {
 		return
 	}
 
-	action, err := h.store.Actions.Update(c.Request.Context(), id, req.TargetURL, req.SigningSecret, req.IsActive, nil, nil)
+	if req.TransformScript != nil && *req.TransformScript != "" {
+		if err := script.ValidateActionTransform(*req.TransformScript); err != nil {
+			c.String(http.StatusBadRequest, "invalid transform script: %s", err.Error())
+			return
+		}
+	}
+
+	action, err := h.store.Actions.Update(c.Request.Context(), id, store.ActionUpdateParams{
+		TargetURL:       req.TargetURL,
+		SigningSecret:   req.SigningSecret,
+		IsActive:        req.IsActive,
+		TransformScript: req.TransformScript,
+	})
 	if err != nil {
 		c.String(http.StatusInternalServerError, "failed to update action")
 		return

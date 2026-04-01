@@ -1,0 +1,55 @@
+{{define "content"}}
+<div class="breadcrumb"><a href="/sources">Sources</a> / {{.Source.Name}}</div>
+<div class="header-row">
+  <h1>{{.Source.Name}}</h1>
+  <button class="btn btn-danger btn-sm"
+    hx-delete="/sources/{{.Source.Slug}}"
+    hx-confirm="Delete this source and all its actions?">Delete Source</button>
+</div>
+
+<div class="tab-bar">
+  <a class="tab-btn" href="/sources/{{.Source.Slug}}">Overview</a>
+  <a class="tab-btn" href="/sources/{{.Source.Slug}}/script">Script</a>
+  <a class="tab-btn" href="/sources/{{.Source.Slug}}/actions">Actions</a>
+  <a class="tab-btn tab-active" href="/sources/{{.Source.Slug}}/events">Events</a>
+</div>
+
+<div class="card" id="events-card">
+  <div class="header-row" style="margin-bottom:0.75rem">
+    <h2 style="margin-bottom:0">Recent Events</h2>
+    <div style="display:flex;gap:0.5rem;align-items:center">
+      <button class="btn btn-sm"
+        hx-post="/sources/{{.Source.Slug}}/events/forward-all"
+        hx-swap="none"
+        hx-confirm="Forward all recorded deliveries to active actions?"
+        style="border:1px solid var(--border);color:var(--text-muted);font-size:0.8rem">Forward All Recorded</button>
+      <a href="/deliveries?source={{.Source.Slug}}" class="btn btn-sm" style="border:1px solid var(--border);color:var(--text-muted);font-size:0.8rem">View all</a>
+    </div>
+  </div>
+  {{if .Deliveries}}
+  <table>
+    <thead><tr><th>ID</th><th>Status</th><th>Idempotency Key</th><th>Received</th><th>Actions</th></tr></thead>
+    <tbody>
+      {{range .Deliveries}}
+      <tr>
+        <td><a href="/deliveries/{{.ID}}"><code>{{shortID .ID}}</code></a></td>
+        <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+        <td><code>{{.IdempotencyKey}}</code></td>
+        <td>{{formatTime .ReceivedAt}}</td>
+        <td>
+          {{if eq .Status "recorded"}}
+          <button class="btn btn-sm"
+            hx-post="/sources/{{$.Source.Slug}}/events/{{.ID}}/forward"
+            hx-swap="none"
+            style="border:1px solid var(--border);font-size:0.75rem">Forward</button>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="empty">No events yet. Send a webhook to <code>{{.WebhookURL}}</code></div>
+  {{end}}
+</div>
+{{end}}

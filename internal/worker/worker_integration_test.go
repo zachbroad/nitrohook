@@ -14,6 +14,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/zachbroad/nitrohook/internal/model"
+	"github.com/zachbroad/nitrohook/internal/store"
 	"github.com/zachbroad/nitrohook/internal/testutil"
 	"github.com/zachbroad/nitrohook/internal/worker"
 )
@@ -42,7 +43,7 @@ func TestWorkerEndToEnd(t *testing.T) {
 	}
 
 	targetURL := server.URL
-	_, err = s.Actions.Create(ctx, src.ID, model.ActionTypeWebhook, &targetURL, nil, nil, nil)
+	_, err = s.Actions.Create(ctx, store.ActionCreateParams{SourceID: src.ID, Type: model.ActionTypeWebhook, TargetURL: &targetURL})
 	if err != nil {
 		t.Fatalf("create action: %v", err)
 	}
@@ -116,7 +117,7 @@ func TestWorkerRetryFlow(t *testing.T) {
 
 	src, _ := s.Sources.Create(ctx, "Retry Test", "retry-test", "active", nil)
 	targetURL := server.URL
-	_, _ = s.Actions.Create(ctx, src.ID, model.ActionTypeWebhook, &targetURL, nil, nil, nil)
+	_, _ = s.Actions.Create(ctx, store.ActionCreateParams{SourceID: src.ID, Type: model.ActionTypeWebhook, TargetURL: &targetURL})
 
 	del, _ := s.Deliveries.Create(ctx, src.ID, "retry-idem", json.RawMessage(`{}`), json.RawMessage(`{}`))
 
@@ -175,7 +176,7 @@ func TestWorkerRecordMode(t *testing.T) {
 	// Create source in record mode
 	src, _ := s.Sources.Create(ctx, "Record Test", "record-test", "record", nil)
 	targetURL := server.URL
-	s.Actions.Create(ctx, src.ID, model.ActionTypeWebhook, &targetURL, nil, nil, nil)
+	s.Actions.Create(ctx, store.ActionCreateParams{SourceID: src.ID, Type: model.ActionTypeWebhook, TargetURL: &targetURL})
 
 	del, _ := s.Deliveries.Create(ctx, src.ID, "record-idem", json.RawMessage(`{}`), json.RawMessage(`{}`))
 
