@@ -64,6 +64,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
+          platforms: linux/amd64,linux/arm64
 
       - name: Sign the published Docker image
         if: ${{ github.event_name != 'pull_request' }}
