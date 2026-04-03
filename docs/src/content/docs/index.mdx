@@ -1,0 +1,42 @@
+---
+title: nitrohook
+description: Self-hosted webhook gateway with fan-out, transforms, and multi-channel delivery.
+template: splash
+hero:
+  tagline: Receive webhooks once. Deliver everywhere. Transform in-flight with JavaScript.
+  actions:
+    - text: Quickstart
+      link: /getting-started/quickstart/
+      icon: right-arrow
+    - text: GitHub
+      link: https://github.com/zachbroad/nitrohook
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## What is nitrohook?
+
+nitrohook is a self-hosted webhook gateway. It receives incoming webhooks, optionally transforms them with JavaScript, and fans them out to multiple destinations — HTTP endpoints, Slack, email, Twilio SMS, or custom JS handlers.
+
+<CardGrid>
+  <Card title="Fan-out" icon="rocket">
+    One inbound webhook triggers multiple actions — forward to an API, ping Slack, send an email, all from a single delivery.
+  </Card>
+  <Card title="JavaScript transforms" icon="seti:javascript">
+    Write `transform()` functions to filter, reshape, or drop payloads before dispatch. Runs in a sandboxed JS runtime (goja) with a 500ms timeout.
+  </Card>
+  <Card title="Multi-channel dispatch" icon="random">
+    Built-in dispatchers for webhooks, Slack, SMTP email, Twilio SMS, and inline JavaScript execution.
+  </Card>
+  <Card title="Record mode" icon="magnifier">
+    Capture webhooks without dispatching. Inspect payloads in the UI, then forward when ready. Great for debugging integrations.
+  </Card>
+  <Card title="Retries with backoff" icon="approve-check-circle">
+    Failed deliveries retry with exponential backoff and jitter. Track every attempt with status, response body, and error messages.
+  </Card>
+  <Card title="Self-hosted" icon="linux">
+    Deploy with Docker Compose. Postgres for storage, Redis Streams for the work queue. No external dependencies, no SaaS lock-in.
+  </Card>
+</CardGrid>
