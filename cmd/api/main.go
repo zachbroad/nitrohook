@@ -16,8 +16,10 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/zachbroad/nitrohook/internal/config"
 	"github.com/zachbroad/nitrohook/internal/database"
+	"github.com/zachbroad/nitrohook/internal/dispatch"
 	"github.com/zachbroad/nitrohook/internal/handler"
 	"github.com/zachbroad/nitrohook/internal/middleware"
+	"github.com/zachbroad/nitrohook/internal/model"
 	"github.com/zachbroad/nitrohook/internal/store"
 	"github.com/zachbroad/nitrohook/internal/worker"
 	"github.com/zachbroad/nitrohook/web"
@@ -67,6 +69,14 @@ func main() {
 	}
 	defer rdb.Close()
 	slog.Info("connected to redis")
+
+	// Register dispatchers for action type validation
+	httpClient := &http.Client{Timeout: cfg.DeliveryTimeout}
+	dispatch.Register(model.ActionTypeWebhook, &dispatch.WebhookDispatcher{Client: httpClient})
+	dispatch.Register(model.ActionTypeJavascript, &dispatch.JavascriptDispatcher{})
+	dispatch.Register(model.ActionTypeSlack, &dispatch.SlackDispatcher{Client: httpClient})
+	dispatch.Register(model.ActionTypeSMTP, &dispatch.SMTPDispatcher{})
+	dispatch.Register(model.ActionTypeTwilio, &dispatch.TwilioDispatcher{Client: httpClient})
 
 	// Initialize store and handlers
 	s := store.New(pool)
