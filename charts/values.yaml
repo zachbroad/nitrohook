@@ -86,6 +86,13 @@ postgres:
       cpu: "1"
       memory: 1Gi
 
+## Prometheus metrics
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 15s
+    additionalLabels: {}
+
 ## Redis
 redis:
   image:

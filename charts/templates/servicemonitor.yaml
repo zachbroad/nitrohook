@@ -1,0 +1,41 @@
+{{- if .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "nitrohook.fullname" . }}-api
+  labels:
+    {{- include "nitrohook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "nitrohook.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval | default "15s" }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "nitrohook.fullname" . }}-worker
+  labels:
+    {{- include "nitrohook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+    {{- with .Values.metrics.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "nitrohook.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  endpoints:
+    - port: health
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval | default "15s" }}
+{{- end }}
