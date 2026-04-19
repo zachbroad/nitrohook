@@ -54,11 +54,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    command: ["/api", "--migrate"]
+    command: ["--migrate"]
     environment:
       DATABASE_URL: postgres://nitrohook:nitrohook@postgres:5432/nitrohook?sslmode=disable
+      REDIS_URL: redis://redis:6379
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   api:

@@ -2,6 +2,22 @@
 
 Self-hosted webhook gateway that receives, transforms, and fans out webhook deliveries to multiple destinations. Built with Go, Postgres, and Redis.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/sources.png" alt="Sources list"><br><sub>Sources — each has a public ingest URL, a mode (active/record), and a set of fan-out actions.</sub></td>
+    <td width="50%"><img src="docs/screenshots/actions.png" alt="Actions per source"><br><sub>Actions — webhook, Slack, SMTP, Twilio, or sandboxed JavaScript; toggle active/inactive inline.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/script-editor.png" alt="Transform script editor"><br><sub>Monaco-powered transform script editor — mutate the payload, drop events by returning null, or filter <code>event.actions</code> to route selectively. Test against recorded payloads inline.</sub></td>
+    <td width="50%"><img src="docs/screenshots/deliveries.png" alt="Events list"><br><sub>Events — every incoming webhook with its status (recorded / completed / failed) and idempotency key.</sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/delivery-detail.png" alt="Event detail with attempts"><br><sub>Event detail — raw headers, payload, and a per-attempt breakdown with HTTP status and errors.</sub></td>
+  </tr>
+</table>
+
 ## Features
 
 - **Multi-destination fan-out** -- route incoming webhooks to HTTP endpoints, Slack, email (SMTP), Twilio SMS, or sandboxed JavaScript handlers
