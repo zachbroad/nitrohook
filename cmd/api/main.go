@@ -90,6 +90,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestLogger())
+	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
 	r.RedirectFixedPath = true
 	r.RedirectTrailingSlash = true
 

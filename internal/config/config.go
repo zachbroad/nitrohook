@@ -3,30 +3,33 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Config struct {
-	DatabaseURL       string
-	RedisURL          string
-	Port              string
-	WorkerConcurrency int
-	MaxRetries        int
-	RetryBaseDelay    time.Duration
-	DeliveryTimeout   time.Duration
-	PollInterval      time.Duration
+	DatabaseURL        string
+	RedisURL           string
+	Port               string
+	WorkerConcurrency  int
+	MaxRetries         int
+	RetryBaseDelay     time.Duration
+	DeliveryTimeout    time.Duration
+	PollInterval       time.Duration
+	CORSAllowedOrigins []string
 }
 
 func Load() Config {
 	return Config{
-		DatabaseURL:       envOrDefault("DATABASE_URL", "postgres://nitrohook:nitrohook@localhost:5432/nitrohook?sslmode=disable"),
-		RedisURL:          envOrDefault("REDIS_URL", "redis://localhost:6379"),
-		Port:              envOrDefault("PORT", "8080"),
-		WorkerConcurrency: envOrDefaultInt("WORKER_CONCURRENCY", 4),
-		MaxRetries:        envOrDefaultInt("MAX_RETRIES", 5),
-		RetryBaseDelay:    envOrDefaultDuration("RETRY_BASE_DELAY", 5*time.Second),
-		DeliveryTimeout:   envOrDefaultDuration("DELIVERY_TIMEOUT", 10*time.Second),
-		PollInterval:      envOrDefaultDuration("POLL_INTERVAL", 30*time.Second),
+		DatabaseURL:        envOrDefault("DATABASE_URL", "postgres://nitrohook:nitrohook@localhost:5432/nitrohook?sslmode=disable"),
+		RedisURL:           envOrDefault("REDIS_URL", "redis://localhost:6379"),
+		Port:               envOrDefault("PORT", "8080"),
+		WorkerConcurrency:  envOrDefaultInt("WORKER_CONCURRENCY", 4),
+		MaxRetries:         envOrDefaultInt("MAX_RETRIES", 5),
+		RetryBaseDelay:     envOrDefaultDuration("RETRY_BASE_DELAY", 5*time.Second),
+		DeliveryTimeout:    envOrDefaultDuration("DELIVERY_TIMEOUT", 10*time.Second),
+		PollInterval:       envOrDefaultDuration("POLL_INTERVAL", 30*time.Second),
+		CORSAllowedOrigins: envOrDefaultStringSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173"}),
 	}
 }
 
@@ -53,4 +56,22 @@ func envOrDefaultDuration(key string, fallback time.Duration) time.Duration {
 		}
 	}
 	return fallback
+}
+
+func envOrDefaultStringSlice(key string, fallback []string) []string {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	parts := strings.Split(v, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	if len(result) == 0 {
+		return fallback
+	}
+	return result
 }
