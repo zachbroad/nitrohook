@@ -487,7 +487,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"hash"
@@ -496,6 +495,10 @@ import (
 	"time"
 )
 ```
+Compare by decoding the received signature to raw bytes per the configured
+encoding, then `hmac.Equal` on the bytes. **Do not lowercase and string-compare:**
+base64 is case-sensitive, so lowercasing both sides can make two different
+signatures collide (a false accept). Hex decoding is already case-insensitive.
 ```go
 func verifyHMAC(cfg Config, header http.Header, rawBody []byte, now time.Time) error {
 	sig, err := extractSignature(cfg, header)
@@ -507,7 +510,11 @@ func verifyHMAC(cfg Config, header http.Header, rawBody []byte, now time.Time) e
 		return err
 	}
 	expected := computeHMAC(cfg, signed)
-	if subtle.ConstantTimeCompare([]byte(strings.ToLower(sig)), []byte(strings.ToLower(expected))) != 1 {
+	got, err := decodeSig(cfg, sig)
+	if err != nil {
+		return ErrBadSignature
+	}
+	if !hmac.Equal(expected, got) {
 		return ErrBadSignature
 	}
 	return nil
@@ -520,14 +527,19 @@ func hasher(algo string) func() hash.Hash {
 	return sha256.New
 }
 
-func computeHMAC(cfg Config, signed []byte) string {
+// computeHMAC returns the raw (un-encoded) HMAC of signed.
+func computeHMAC(cfg Config, signed []byte) []byte {
 	mac := hmac.New(hasher(cfg.Algo), []byte(cfg.Secret))
 	mac.Write(signed)
-	sum := mac.Sum(nil)
+	return mac.Sum(nil)
+}
+
+// decodeSig decodes a received signature string into raw bytes per cfg.Encoding.
+func decodeSig(cfg Config, sig string) ([]byte, error) {
 	if cfg.Encoding == "base64" {
-		return base64.StdEncoding.EncodeToString(sum)
+		return base64.StdEncoding.DecodeString(sig)
 	}
-	return hex.EncodeToString(sum)
+	return hex.DecodeString(sig)
 }
 
 // extractSignature returns the raw signature value using the configured parser.
@@ -679,7 +691,8 @@ Expected: FAIL (advanced stubs return `ErrUnsupportedScheme`).
 
 In `internal/inboundauth/verify.go`, replace the two `*Advanced` stubs. Add `"strconv"` to imports. For `space-list` and `kv-comma`, multiple candidate signatures may appear; compare each in constant time and accept any match. Rework `verifyHMAC`'s compare so multi-candidate parsers are handled: change `extractSignature` to return `[]string`.
 
-Replace the `verifyHMAC` compare block and `extractSignature` signature:
+Replace the `verifyHMAC` compare block and `extractSignature` signature. Keep the
+decode-then-`hmac.Equal` comparison from Task 3, applied to each candidate:
 ```go
 func verifyHMAC(cfg Config, header http.Header, rawBody []byte, now time.Time) error {
 	sigs, err := extractSignatures(cfg, header)
@@ -692,7 +705,11 @@ func verifyHMAC(cfg Config, header http.Header, rawBody []byte, now time.Time) e
 	}
 	expected := computeHMAC(cfg, signed)
 	for _, sig := range sigs {
-		if subtle.ConstantTimeCompare([]byte(strings.ToLower(sig)), []byte(strings.ToLower(expected))) == 1 {
+		got, err := decodeSig(cfg, sig)
+		if err != nil {
+			continue
+		}
+		if hmac.Equal(expected, got) {
 			return nil
 		}
 	}
@@ -859,7 +876,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement the equality schemes**
 
-Replace the stubs in `internal/inboundauth/verify.go`:
+Add `"crypto/subtle"` to the imports of `internal/inboundauth/verify.go` (first use), then replace the stubs:
 ```go
 func verifyToken(cfg Config, header http.Header) error {
 	got := header.Get(cfg.TokenHdr)
