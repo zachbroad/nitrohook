@@ -151,6 +151,7 @@ func main() {
 				srcGroup.GET("", sourceH.Get)
 				srcGroup.PATCH("", sourceH.Update)
 				srcGroup.DELETE("", sourceH.Delete)
+				srcGroup.POST("/script/test", sourceH.TestScript)
 				actions := srcGroup.Group("/actions")
 				{
 					actions.POST("", actionH.Create)

@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/zachbroad/nitrohook/internal/script"
 	"github.com/zachbroad/nitrohook/internal/store"
 )
@@ -163,6 +165,78 @@ func (h *SourceHandler) Update(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, src)
+}
+
+type testScriptRequest struct {
+	ScriptBody string `json:"script_body"`
+	DeliveryID string `json:"delivery_id"`
+}
+
+// TestScript runs a candidate source-transform script against a recorded
+// delivery and returns the transform result as JSON. It never returns 500 for
+// a script that merely throws — that surfaces as {"result":null,"error":...}.
+func (h *SourceHandler) TestScript(c *gin.Context) {
+	slug := c.Param("sourceSlug")
+	var req testScriptRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.String(http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if strings.TrimSpace(req.DeliveryID) == "" {
+		c.String(http.StatusBadRequest, "delivery_id is required")
+		return
+	}
+	if strings.TrimSpace(req.ScriptBody) == "" {
+		c.String(http.StatusBadRequest, "script_body is required")
+		return
+	}
+
+	source, err := h.store.Sources.GetBySlug(c.Request.Context(), slug)
+	if err != nil {
+		c.String(http.StatusNotFound, "source not found")
+		return
+	}
+	did, err := uuid.Parse(req.DeliveryID)
+	if err != nil {
+		c.String(http.StatusBadRequest, "invalid delivery_id")
+		return
+	}
+	delivery, err := h.store.Deliveries.GetByID(c.Request.Context(), did)
+	if err != nil || delivery.SourceID != source.ID {
+		c.String(http.StatusNotFound, "delivery not found for this source")
+		return
+	}
+
+	var payload map[string]any
+	if delivery.Payload != nil {
+		if err := json.Unmarshal(delivery.Payload, &payload); err != nil {
+			payload = map[string]any{"_raw": string(delivery.Payload)}
+		}
+	}
+	var headers map[string]string
+	if delivery.Headers != nil {
+		_ = json.Unmarshal(delivery.Headers, &headers)
+	}
+
+	actions, _ := h.store.Actions.ListActiveBySource(c.Request.Context(), source.ID)
+	actionRefs := make([]script.ActionRef, len(actions))
+	for i, a := range actions {
+		targetURL := ""
+		if a.TargetURL != nil {
+			targetURL = *a.TargetURL
+		}
+		actionRefs[i] = script.ActionRef{ID: a.ID, TargetURL: targetURL}
+	}
+
+	result, err := script.Run(req.ScriptBody, script.TransformInput{
+		Payload: payload, Headers: headers, Actions: actionRefs,
+	})
+	if err != nil {
+		msg := err.Error()
+		c.JSON(http.StatusOK, gin.H{"result": nil, "error": msg})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"result": result, "error": nil})
 }
 
 func (h *SourceHandler) Delete(c *gin.Context) {
