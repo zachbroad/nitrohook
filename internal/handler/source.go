@@ -207,18 +207,25 @@ func (h *SourceHandler) TestScript(c *gin.Context) {
 		return
 	}
 
+	// Mirror worker.FanoutWorker.runTransform's unmarshal behavior exactly so
+	// a passing test here implies the script will run the same way in
+	// production: any unmarshal failure is a handled error, not a fallback.
 	var payload map[string]any
-	if delivery.Payload != nil {
-		if err := json.Unmarshal(delivery.Payload, &payload); err != nil {
-			payload = map[string]any{"_raw": string(delivery.Payload)}
-		}
+	if err := json.Unmarshal(delivery.Payload, &payload); err != nil {
+		c.JSON(http.StatusOK, gin.H{"result": nil, "error": "unmarshal payload: " + err.Error()})
+		return
 	}
 	var headers map[string]string
-	if delivery.Headers != nil {
-		_ = json.Unmarshal(delivery.Headers, &headers)
+	if err := json.Unmarshal(delivery.Headers, &headers); err != nil {
+		c.JSON(http.StatusOK, gin.H{"result": nil, "error": "unmarshal headers: " + err.Error()})
+		return
 	}
 
-	actions, _ := h.store.Actions.ListActiveBySource(c.Request.Context(), source.ID)
+	actions, err := h.store.Actions.ListActiveBySource(c.Request.Context(), source.ID)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"result": nil, "error": "failed to load actions: " + err.Error()})
+		return
+	}
 	actionRefs := make([]script.ActionRef, len(actions))
 	for i, a := range actions {
 		targetURL := ""
