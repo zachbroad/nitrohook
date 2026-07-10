@@ -9,6 +9,9 @@ A webhook fan-out service in Go. Ingests webhooks via HTTP, stores them in Postg
 ## Build & Development Commands
 
 ```bash
+make dev                      # One-command dev loop: infra + migrate + API/worker with hot reload
+make dev-setup                # Install Air (one-time, required by `make dev`)
+make dev-down                 # Stop the Postgres + Redis containers started by `make dev`
 make build                    # Build bin/api and bin/worker
 make run-api                  # go run ./cmd/api
 make run-worker               # go run ./cmd/worker
@@ -65,3 +68,10 @@ Required services: PostgreSQL 18, Redis 8. See `.env.example` for all env vars. 
 ## Migrations
 
 SQL files in `/migrations/` managed by golang-migrate. Naming: sequential numbered pairs (`000001_name.up.sql` / `000001_name.down.sql`).
+
+## Changelog & docs upkeep
+
+When you make a user-facing change (new feature, flag, command, config var, behavior change, or fix), keep these in sync as part of the same change — not as an afterthought:
+
+- **`CHANGELOG.md`** — follows [Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/). Add an entry under the `## [Unreleased]` section using the appropriate group (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`). On release, rename `[Unreleased]` to the new `## [x.y.z] - YYYY-MM-DD`, add a fresh empty `[Unreleased]`, update the compare links at the bottom, and tag the commit `vx.y.z`.
+- **Docs site (`docs/`)** — an [Astro Starlight](https://starlight.astro.build/) site under `docs/src/content/docs/`. Update the relevant page(s) so the published docs match the change (e.g. a new command belongs in `getting-started/quickstart.md`, a new config var in `self-hosting/configuration.md`, a new action type in `guides/action-types.md`). Do not hand-edit `docs/dist/` — it is generated build output.

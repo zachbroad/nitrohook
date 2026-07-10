@@ -1,6 +1,25 @@
-.PHONY: run-api run-worker build test test-unit test-integration test-all docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db
+.PHONY: dev dev-setup dev-down run-api run-worker build test test-unit test-integration test-all docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db
 
 DATABASE_URL ?= postgres://nitrohook:nitrohook@localhost:5432/nitrohook?sslmode=disable
+
+# dev: one-command dev loop. Starts Postgres + Redis in Docker (waits until
+# healthy), applies migrations via the API binary, then runs the API + in-process
+# worker under Air for hot reload. Ctrl-C stops Air; infra keeps running (use
+# `make dev-down` to stop it). Requires: Go, Docker, and Air (`make dev-setup`).
+dev:
+	@command -v air >/dev/null 2>&1 || { \
+		echo "air not found. Install it with: make dev-setup"; exit 1; }
+	docker compose up -d --wait postgres redis
+	go run ./cmd/api --migrate
+	air
+
+# dev-setup: install the Air hot-reload tool.
+dev-setup:
+	go install github.com/air-verse/air@latest
+
+# dev-down: stop the dev infra (Postgres + Redis) started by `make dev`.
+dev-down:
+	docker compose down
 
 run-api:
 	go run ./cmd/api

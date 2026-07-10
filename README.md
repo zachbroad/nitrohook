@@ -63,7 +63,31 @@ make docker-down
 
 ### Local development
 
-Prerequisites: Go 1.24+, a running Postgres instance, a running Redis instance.
+Prerequisites: Go 1.24+ and Docker.
+
+For the fastest inner loop, use the one-command dev target:
+
+```bash
+make dev-setup   # once: installs Air (hot-reload tool)
+make dev         # starts Postgres + Redis, migrates, runs API + worker with hot reload
+```
+
+`make dev` starts Postgres and Redis in Docker (waiting until they're healthy),
+applies migrations via the API binary, then runs the API with an in-process
+worker under [Air](https://github.com/air-verse/air). Editing any `.go` or
+`.html` file triggers an automatic rebuild in ~1s. The API is available at
+`http://localhost:8080`.
+
+Press `Ctrl-C` to stop the app; the Postgres and Redis containers keep running
+(so your data and startup time are preserved). To stop them too:
+
+```bash
+make dev-down    # stops the Postgres + Redis containers
+```
+
+#### Manual setup
+
+If you'd rather run each piece yourself against your own Postgres/Redis:
 
 ```bash
 # Create the database and role
