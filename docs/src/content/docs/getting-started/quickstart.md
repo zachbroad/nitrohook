@@ -25,6 +25,23 @@ curl http://localhost:8080/readyz
 # {"status":"ok"}
 ```
 
+## For local development
+
+If you're working on nitrohook itself, use the one-command dev loop. It starts
+Postgres and Redis in Docker (waiting until they're healthy), applies migrations,
+then runs the API with an in-process worker under [Air](https://github.com/air-verse/air)
+for hot reload — editing any `.go` or `.html` file rebuilds in about a second.
+
+```bash
+make dev-setup   # once: installs Air
+make dev         # infra + migrate + API/worker with hot reload
+```
+
+The API and web UI will be available at `http://localhost:8080`.
+
+Press `Ctrl-C` to stop the app; the Postgres and Redis containers keep running so
+your data and startup time are preserved. Run `make dev-down` to stop them too.
+
 ## Without Docker
 
 ### Prerequisites

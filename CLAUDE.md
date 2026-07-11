@@ -27,10 +27,11 @@ Hot reload via Air: `air` (watches .go and .html files, configured in `.air.toml
 
 ## Architecture
 
-Two binaries sharing the same internal packages:
+Three binaries sharing the same internal packages:
 
 - **`cmd/api`** — HTTP server (Gin). Ingests webhooks at `POST /webhooks/:sourceSlug`, serves REST API under `/api/`, and a web UI. Supports `--migrate` and `--worker` flags (in-process worker).
 - **`cmd/worker`** — Standalone fan-out worker. Reads from Redis Stream `deliveries` (consumer group `fanout-workers`), dispatches to actions with exponential backoff retry.
+- **`cmd/mcp`** — Model Context Protocol server (stdio). Exposes read-only `list_sources`, `list_actions`, `list_deliveries` tools backed by the same store. Built on `github.com/modelcontextprotocol/go-sdk`.
 
 ### Key internal packages
 

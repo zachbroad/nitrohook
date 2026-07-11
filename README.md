@@ -2,21 +2,7 @@
 
 Self-hosted webhook gateway that receives, transforms, and fans out webhook deliveries to multiple destinations. Built with Go, Postgres, and Redis.
 
-## Screenshots
-
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/sources.png" alt="Sources list"><br><sub>Sources — each has a public ingest URL, a mode (active/record), and a set of fan-out actions.</sub></td>
-    <td width="50%"><img src="docs/screenshots/actions.png" alt="Actions per source"><br><sub>Actions — webhook, Slack, SMTP, Twilio, or sandboxed JavaScript; toggle active/inactive inline.</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/script-editor.png" alt="Transform script editor"><br><sub>Monaco-powered transform script editor — mutate the payload, drop events by returning null, or filter <code>event.actions</code> to route selectively. Test against recorded payloads inline.</sub></td>
-    <td width="50%"><img src="docs/screenshots/deliveries.png" alt="Events list"><br><sub>Events — every incoming webhook with its status (recorded / completed / failed) and idempotency key.</sub></td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="docs/screenshots/delivery-detail.png" alt="Event detail with attempts"><br><sub>Event detail — raw headers, payload, and a per-attempt breakdown with HTTP status and errors.</sub></td>
-  </tr>
-</table>
+See the [docs tour](docs/src/content/docs/tour.md) for screenshots of the web UI.
 
 ## Features
 
@@ -27,6 +13,7 @@ Self-hosted webhook gateway that receives, transforms, and fans out webhook deli
 - **Record mode** -- capture incoming webhooks without dispatching, then replay them on demand
 - **Web UI and REST API** -- manage sources, actions, deliveries, and scripts through a browser UI or a JSON API
 - **Prometheus metrics** -- built-in `/metrics` endpoint for ingest latency, dispatch duration, pending delivery counts, and retry queue depth
+- **MCP server** -- optional [Model Context Protocol](https://modelcontextprotocol.io) server (`cmd/mcp`) that exposes read-only tools for sources, actions, and deliveries to LLM hosts like Claude Desktop
 
 ## Architecture
 
@@ -101,6 +88,40 @@ All settings are controlled via environment variables (or a `.env` file):
 make test                # unit tests
 make test-integration    # integration tests (requires Postgres + Redis)
 ```
+
+## MCP server
+
+NitroHook ships with a [Model Context Protocol](https://modelcontextprotocol.io) server at `cmd/mcp`. It speaks JSON-RPC over stdio and exposes three read-only tools:
+
+| Tool | Description |
+|---|---|
+| `list_sources` | List all configured sources |
+| `list_actions` | List actions for a source (by slug) |
+| `list_deliveries` | List recent deliveries, optionally filtered by source slug |
+
+Build and run:
+
+```bash
+make build            # produces bin/mcp
+DATABASE_URL=... bin/mcp
+```
+
+To wire it into Claude Desktop, add an entry to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "nitrohook": {
+      "command": "/absolute/path/to/nitrohook/bin/mcp",
+      "env": {
+        "DATABASE_URL": "postgres://nitrohook:nitrohook@localhost:5432/nitrohook?sslmode=disable"
+      }
+    }
+  }
+}
+```
+
+The server connects directly to Postgres; Redis is not required. See the [MCP docs page](docs/src/content/docs/guides/mcp.md) for more detail.
 
 ## CI/CD
 

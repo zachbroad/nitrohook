@@ -1,4 +1,4 @@
-.PHONY: run-api run-worker build test test-unit test-integration test-all docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db
+.PHONY: run-api run-worker run-mcp build test test-unit test-integration test-all docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db
 
 DATABASE_URL ?= postgres://nitrohook:nitrohook@localhost:5432/nitrohook?sslmode=disable
 
@@ -8,9 +8,13 @@ run-api:
 run-worker:
 	go run ./cmd/worker
 
+run-mcp:
+	go run ./cmd/mcp
+
 build:
 	go build -o bin/api ./cmd/api
 	go build -o bin/worker ./cmd/worker
+	go build -o bin/mcp ./cmd/mcp
 
 test:
 	go test ./...
