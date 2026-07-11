@@ -1,6 +1,7 @@
 package inboundauth
 
 import (
+	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -173,6 +174,31 @@ func TestBearerScheme(t *testing.T) {
 	}
 	h.Set("Authorization", "Bearer nope")
 	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err != ErrBadSignature {
+		t.Fatalf("expected ErrBadSignature, got %v", err)
+	}
+}
+
+func TestEd25519Scheme(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := "1700000000"
+	body := []byte(`{"type":1}`)
+	sig := ed25519.Sign(priv, append([]byte(ts), body...))
+
+	cfg := Config{
+		Scheme: SchemeEd25519, SigHeader: "X-Signature-Ed25519",
+		TSHeader: "X-Signature-Timestamp", PublicKey: hex.EncodeToString(pub),
+	}
+	h := http.Header{}
+	h.Set("X-Signature-Ed25519", hex.EncodeToString(sig))
+	h.Set("X-Signature-Timestamp", ts)
+	if err := Verify(cfg, h, body, time.Unix(0, 0)); err != nil {
+		t.Fatalf("valid ed25519 sig rejected: %v", err)
+	}
+	// Tamper.
+	if err := Verify(cfg, h, []byte("tampered"), time.Unix(0, 0)); err != ErrBadSignature {
 		t.Fatalf("expected ErrBadSignature, got %v", err)
 	}
 }

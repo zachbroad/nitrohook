@@ -1,6 +1,7 @@
 package inboundauth
 
 import (
+	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/sha1"
 	"crypto/sha256"
@@ -226,5 +227,31 @@ func verifyBearer(cfg Config, header http.Header) error {
 	return nil
 }
 
-// Temporary stub for schemes implemented in subsequent tasks
-func verifyEd25519(Config, http.Header, []byte, time.Time) error { return ErrUnsupportedScheme }
+func verifyEd25519(cfg Config, header http.Header, rawBody []byte, now time.Time) error {
+	sigHex := header.Get(cfg.SigHeader)
+	if sigHex == "" {
+		return ErrMissingSignature
+	}
+	ts := header.Get(cfg.TSHeader)
+	if ts == "" {
+		return ErrMissingTimestamp
+	}
+	if cfg.TSToleranceS > 0 {
+		if err := checkTolerance(ts, cfg.TSToleranceS, now); err != nil {
+			return err
+		}
+	}
+	pub, err := hex.DecodeString(cfg.PublicKey)
+	if err != nil || len(pub) != ed25519.PublicKeySize {
+		return ErrBadSignature
+	}
+	sig, err := hex.DecodeString(sigHex)
+	if err != nil {
+		return ErrBadSignature
+	}
+	msg := append([]byte(ts), rawBody...)
+	if !ed25519.Verify(ed25519.PublicKey(pub), msg, sig) {
+		return ErrBadSignature
+	}
+	return nil
+}
