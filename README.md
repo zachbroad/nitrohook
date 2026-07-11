@@ -102,6 +102,16 @@ make test                # unit tests
 make test-integration    # integration tests (requires Postgres + Redis)
 ```
 
+## React Admin UI
+
+The screenshots above come from a React SPA in [`web/ui/`](web/ui/) that talks to the REST API. See [`web/ui/README.md`](web/ui/README.md) for setup, dev server, and build instructions. Quick start:
+
+```bash
+make ui-dev      # starts the Vite dev server at http://localhost:5173
+```
+
+The Go API must be started with `CORS_ALLOWED_ORIGINS=http://localhost:5173` for the dev server to reach it.
+
 ## CI/CD
 
 Docker images are built and pushed to GHCR via `.github/workflows/docker-publish.yml` on every push to `main`. Deployment config (Helm chart, Terraform, environment values) lives in a separate private infra repo.

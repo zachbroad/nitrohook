@@ -5,11 +5,7 @@ import { StatusBadge } from "@/components/status-badge"
 import { JsonViewer } from "@/components/json-viewer"
 import { useAttempts, useDelivery, useForwardDelivery } from "@/lib/queries"
 import type { DeliveryAttempt } from "@/lib/types"
-
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString()
-}
+import { formatDate } from "@/lib/utils"
 
 export function DeliveryDetail() {
   const { id = "" } = useParams()

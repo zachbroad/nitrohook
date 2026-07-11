@@ -12,11 +12,7 @@ import {
 import { StatusBadge } from "@/components/status-badge"
 import { useDeliveries, useForwardAll, useForwardDelivery } from "@/lib/queries"
 import type { Delivery } from "@/lib/types"
-
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString()
-}
+import { formatDate } from "@/lib/utils"
 
 export function SourceEvents() {
   const { slug = "" } = useParams()

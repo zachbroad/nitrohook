@@ -4,13 +4,9 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useSource, useUpdateSource } from "@/lib/queries"
+import { formatDate } from "@/lib/utils"
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"
-
-function formatDate(iso: string) {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString()
-}
 
 export function SourceOverview() {
   const { slug = "" } = useParams()

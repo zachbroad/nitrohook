@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom"
 import { SourcesLayout } from "./routes/sources-layout"
 import { DeliveriesLayout } from "./routes/deliveries-layout"
 import { EmptyState } from "./routes/empty-state"
+import { RouteError } from "./routes/error-boundary"
 import { SourceDetail } from "./routes/source-detail"
 import { SourceOverview } from "./routes/source-overview"
 import { SourceActions } from "./routes/source-actions"
@@ -12,7 +13,7 @@ import { DeliveryDetail } from "./routes/delivery-detail"
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/sources" replace /> },
   {
-    path: "/sources", element: <SourcesLayout />,
+    path: "/sources", element: <SourcesLayout />, errorElement: <RouteError />,
     children: [
       { index: true, element: <EmptyState title="Select a source" /> },
       {
@@ -28,7 +29,7 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    path: "/deliveries", element: <DeliveriesLayout />,
+    path: "/deliveries", element: <DeliveriesLayout />, errorElement: <RouteError />,
     children: [
       { index: true, element: <EmptyState title="Select a delivery" /> },
       { path: ":id", element: <DeliveryDetail /> },
