@@ -7,7 +7,7 @@ export const qk = {
   sources: ["sources"] as const,
   source: (s: string) => ["source", s] as const,
   actions: (s: string) => ["source", s, "actions"] as const,
-  deliveries: (p: { source?: string } = {}) => ["deliveries", p] as const,
+  deliveries: (p: { source?: string; limit?: number } = {}) => ["deliveries", p] as const,
   delivery: (id: string) => ["delivery", id] as const,
   attempts: (id: string) => ["delivery", id, "attempts"] as const,
 }
@@ -20,7 +20,7 @@ export const useSource = (slug: string) =>
   useQuery({ queryKey: qk.source(slug), queryFn: () => api.getSource(slug), enabled: !!slug })
 export const useActions = (slug: string) =>
   useQuery({ queryKey: qk.actions(slug), queryFn: () => api.listActions(slug), enabled: !!slug })
-export const useDeliveries = (p: { source?: string } = {}) =>
+export const useDeliveries = (p: { source?: string; limit?: number } = {}) =>
   useQuery({ queryKey: qk.deliveries(p), queryFn: () => api.listDeliveries(p) })
 export const useDelivery = (id: string) =>
   useQuery({ queryKey: qk.delivery(id), queryFn: () => api.getDelivery(id), enabled: !!id })
@@ -72,14 +72,17 @@ export function useDeleteAction(slug: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.actions(slug) }),
   })
 }
-export function useForwardDelivery(slug?: string) {
+export function useForwardDelivery() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: api.forwardDelivery,
     onError,
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
+      // Forwarding creates a new attempt and changes the delivery's status,
+      // so refresh the list plus this delivery's own detail and attempts.
       qc.invalidateQueries({ queryKey: ["deliveries"] })
-      if (slug) qc.invalidateQueries({ queryKey: qk.deliveries({ source: slug }) })
+      qc.invalidateQueries({ queryKey: qk.delivery(id) })
+      qc.invalidateQueries({ queryKey: qk.attempts(id) })
     },
   })
 }
