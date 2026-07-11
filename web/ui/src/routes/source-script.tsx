@@ -32,10 +32,18 @@ export function SourceScript() {
 
   const [scriptBody, setScriptBody] = React.useState("")
   const [deliveryId, setDeliveryId] = React.useState<string | null>(null)
+  const seededSlug = React.useRef<string | null>(null)
 
+  // Seed the editor from the loaded source once per slug. Keying the effect on
+  // source.script_body instead would re-clobber in-progress edits every time a
+  // save-triggered refetch resolves (Save PATCHes, invalidates, refetches, and
+  // the stale-until-resolved value would overwrite newly typed characters).
   React.useEffect(() => {
-    setScriptBody(source?.script_body ?? "")
-  }, [source?.script_body])
+    if (source && seededSlug.current !== slug) {
+      setScriptBody(source.script_body ?? "")
+      seededSlug.current = slug
+    }
+  }, [source, slug])
 
   const testRun = useMutation({
     mutationFn: () => testScript(slug, { script_body: scriptBody, delivery_id: deliveryId ?? "" }),
