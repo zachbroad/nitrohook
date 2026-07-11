@@ -45,6 +45,7 @@ Two binaries sharing the same internal packages:
 | `worker` | FanoutWorker — Redis consumer group, concurrent dispatch, retry polling |
 | `dispatch` | Pluggable dispatchers (Webhook, Slack, SMTP, JavaScript, Twilio) implementing `Dispatcher` interface |
 | `script` | Sandboxed JS execution via Goja (source transforms, action transforms, action scripts). 64KB limit, 500ms timeout |
+| `inboundauth` | Verifies incoming webhook authenticity (HMAC/bearer/token/Ed25519) against per-source config, with provider presets |
 | `signing` | HMAC-SHA256 signing/verification for webhook deliveries |
 | `config` | Env-var-based config loading with defaults |
 | `database` | pgx pool connection + golang-migrate runner |

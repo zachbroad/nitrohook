@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Incoming webhook authentication: verify each webhook against per-source config before it is stored or fanned out. Supports HMAC-SHA256/SHA1 signatures, bearer/plain-token, and Ed25519, with presets for GitHub, Forgejo, Stripe, Slack, Shopify, Svix/Standard Webhooks, GitLab, and Discord. Configurable per source in the UI.
+
+### Security
+
+- Webhook sources can now require authentication; unauthenticated requests are rejected with HTTP 401 before any delivery is stored or published.
+
 ## [0.1.0] - 2026-07-10
 
 ### Added
