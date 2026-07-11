@@ -255,6 +255,72 @@ func TestActionCRUDEndpoints(t *testing.T) {
 	}
 }
 
+func TestActionCreateBindsConfig(t *testing.T) {
+	r, cleanup := setupRouter(t)
+	defer cleanup()
+
+	registerTestDispatchers()
+
+	createSource(t, r, "Action Config", "action-config")
+
+	// Create a slack action with config - this previously returned 400
+	// "config is required" because createActionRequest had no Config field.
+	actionBody, _ := json.Marshal(map[string]any{
+		"type": "slack",
+		"config": map[string]string{
+			"webhook_url": "https://hooks.slack.com/services/T/B/x",
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/sources/action-config/actions", bytes.NewReader(actionBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create action: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var action model.Action
+	if err := json.Unmarshal(w.Body.Bytes(), &action); err != nil {
+		t.Fatalf("unmarshal create response: %v", err)
+	}
+
+	var cfg map[string]any
+	if err := json.Unmarshal(action.Config, &cfg); err != nil {
+		t.Fatalf("unmarshal action config: %v (raw: %s)", err, string(action.Config))
+	}
+	if cfg["webhook_url"] != "https://hooks.slack.com/services/T/B/x" {
+		t.Fatalf("expected config.webhook_url to be set, got: %v", cfg)
+	}
+
+	// Update the action's config - this previously silently no-op'd because
+	// config was never passed into store.ActionUpdateParams.
+	updateBody, _ := json.Marshal(map[string]any{
+		"config": map[string]string{
+			"webhook_url": "https://hooks.slack.com/services/T/B/updated",
+		},
+	})
+	req = httptest.NewRequest(http.MethodPatch, "/api/sources/action-config/actions/"+action.ID.String(), bytes.NewReader(updateBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("update action: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var updated model.Action
+	if err := json.Unmarshal(w.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("unmarshal update response: %v", err)
+	}
+
+	var updatedCfg map[string]any
+	if err := json.Unmarshal(updated.Config, &updatedCfg); err != nil {
+		t.Fatalf("unmarshal updated action config: %v (raw: %s)", err, string(updated.Config))
+	}
+	if updatedCfg["webhook_url"] != "https://hooks.slack.com/services/T/B/updated" {
+		t.Fatalf("expected config.webhook_url to be updated, got: %v", updatedCfg)
+	}
+}
+
 func TestDeliveryListEndpoint(t *testing.T) {
 	r, cleanup := setupRouter(t)
 	defer cleanup()
