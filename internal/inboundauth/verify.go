@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"hash"
@@ -202,7 +203,28 @@ func checkTolerance(tsStr string, toleranceS int, now time.Time) error {
 	return nil
 }
 
-// Temporary stubs for schemes implemented in subsequent tasks
-func verifyToken(Config, http.Header) error                      { return ErrUnsupportedScheme }
-func verifyBearer(Config, http.Header) error                     { return ErrUnsupportedScheme }
+func verifyToken(cfg Config, header http.Header) error {
+	got := header.Get(cfg.TokenHdr)
+	if got == "" {
+		return ErrMissingSignature
+	}
+	if subtle.ConstantTimeCompare([]byte(got), []byte(cfg.Token)) != 1 {
+		return ErrBadSignature
+	}
+	return nil
+}
+
+func verifyBearer(cfg Config, header http.Header) error {
+	raw := header.Get("Authorization")
+	if raw == "" {
+		return ErrMissingSignature
+	}
+	got := strings.TrimPrefix(raw, "Bearer ")
+	if subtle.ConstantTimeCompare([]byte(got), []byte(cfg.Token)) != 1 {
+		return ErrBadSignature
+	}
+	return nil
+}
+
+// Temporary stub for schemes implemented in subsequent tasks
 func verifyEd25519(Config, http.Header, []byte, time.Time) error { return ErrUnsupportedScheme }

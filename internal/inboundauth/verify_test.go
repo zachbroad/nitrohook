@@ -147,3 +147,32 @@ func TestHMACSvixSpaceList(t *testing.T) {
 		t.Fatalf("valid svix sig rejected: %v", err)
 	}
 }
+
+func TestTokenScheme(t *testing.T) {
+	cfg := Config{Scheme: SchemeToken, TokenHdr: "X-Gitlab-Token", Token: "sekret"}
+	h := http.Header{}
+	h.Set("X-Gitlab-Token", "sekret")
+	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err != nil {
+		t.Fatalf("valid token rejected: %v", err)
+	}
+	h.Set("X-Gitlab-Token", "wrong")
+	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err != ErrBadSignature {
+		t.Fatalf("expected ErrBadSignature, got %v", err)
+	}
+	if err := Verify(cfg, http.Header{}, nil, time.Unix(0, 0)); err != ErrMissingSignature {
+		t.Fatalf("expected ErrMissingSignature, got %v", err)
+	}
+}
+
+func TestBearerScheme(t *testing.T) {
+	cfg := Config{Scheme: SchemeBearer, Token: "abc123"}
+	h := http.Header{}
+	h.Set("Authorization", "Bearer abc123")
+	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err != nil {
+		t.Fatalf("valid bearer rejected: %v", err)
+	}
+	h.Set("Authorization", "Bearer nope")
+	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err != ErrBadSignature {
+		t.Fatalf("expected ErrBadSignature, got %v", err)
+	}
+}
