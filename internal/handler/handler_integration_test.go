@@ -27,7 +27,7 @@ func setupRouter(t *testing.T) (*gin.Engine, func()) {
 	webhookH := handler.NewWebhookHandler(s, rdb)
 	sourceH := handler.NewSourceHandler(s)
 	actionH := handler.NewActionHandler(s)
-	deliveryH := handler.NewDeliveryHandler(s)
+	deliveryH := handler.NewDeliveryHandler(s, rdb)
 
 	r := gin.New()
 	r.POST("/webhooks/:sourceSlug", webhookH.Ingest)

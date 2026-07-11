@@ -83,7 +83,7 @@ func main() {
 	webhookH := handler.NewWebhookHandler(s, rdb)
 	sourceH := handler.NewSourceHandler(s)
 	actionH := handler.NewActionHandler(s)
-	deliveryH := handler.NewDeliveryHandler(s)
+	deliveryH := handler.NewDeliveryHandler(s, rdb)
 	webH := web.NewHandler(s, rdb)
 
 	// Routes
@@ -152,6 +152,7 @@ func main() {
 				srcGroup.PATCH("", sourceH.Update)
 				srcGroup.DELETE("", sourceH.Delete)
 				srcGroup.POST("/script/test", sourceH.TestScript)
+				srcGroup.POST("/deliveries/forward-all", deliveryH.ForwardAll)
 				actions := srcGroup.Group("/actions")
 				{
 					actions.POST("", actionH.Create)
@@ -167,6 +168,7 @@ func main() {
 			deliveries.GET("", deliveryH.List)
 			deliveries.GET("/:id", deliveryH.Get)
 			deliveries.GET("/:id/attempts", deliveryH.ListAttempts)
+			deliveries.POST("/:id/forward", deliveryH.Forward)
 		}
 	}
 
