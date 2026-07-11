@@ -34,6 +34,11 @@ func Verify(cfg Config, header http.Header, rawBody []byte, now time.Time) error
 }
 
 func verifyHMAC(cfg Config, header http.Header, rawBody []byte, now time.Time) error {
+	if cfg.Secret == "" {
+		// A misconfigured scheme with no secret is forgeable (HMAC keyed with
+		// "" can be computed by anyone) — fail closed before doing any work.
+		return ErrMissingSecret
+	}
 	sigs, err := extractSignatures(cfg, header)
 	if err != nil {
 		return err
@@ -205,6 +210,11 @@ func checkTolerance(tsStr string, toleranceS int, now time.Time) error {
 }
 
 func verifyToken(cfg Config, header http.Header) error {
+	if cfg.Token == "" {
+		// An empty configured token would otherwise match an empty header
+		// value via ConstantTimeCompare — fail closed.
+		return ErrMissingSecret
+	}
 	got := header.Get(cfg.TokenHdr)
 	if got == "" {
 		return ErrMissingSignature
@@ -216,6 +226,11 @@ func verifyToken(cfg Config, header http.Header) error {
 }
 
 func verifyBearer(cfg Config, header http.Header) error {
+	if cfg.Token == "" {
+		// An empty configured token would otherwise match "Authorization:
+		// Bearer " (trims to empty) via ConstantTimeCompare — fail closed.
+		return ErrMissingSecret
+	}
 	raw := header.Get("Authorization")
 	if raw == "" {
 		return ErrMissingSignature
@@ -228,6 +243,11 @@ func verifyBearer(cfg Config, header http.Header) error {
 }
 
 func verifyEd25519(cfg Config, header http.Header, rawBody []byte, now time.Time) error {
+	if cfg.PublicKey == "" {
+		// Likely already fails via hex-decode length below, but be explicit
+		// for clarity and consistency with the other schemes.
+		return ErrBadSignature
+	}
 	sigHex := header.Get(cfg.SigHeader)
 	if sigHex == "" {
 		return ErrMissingSignature

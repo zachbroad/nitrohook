@@ -48,6 +48,7 @@ var (
 	ErrMissingTimestamp        = errors.New("missing timestamp header")
 	ErrTimestampOutOfTolerance = errors.New("timestamp outside tolerance window")
 	ErrUnsupportedScheme       = errors.New("unsupported auth scheme")
+	ErrMissingSecret           = errors.New("scheme configured without a secret/token")
 )
 
 // ParseConfig decodes sources.auth_config. Nil/empty means no authentication.
@@ -78,6 +79,8 @@ func FailureReason(err error) string {
 		return "timestamp"
 	case errors.Is(err, ErrUnsupportedScheme):
 		return "unsupported"
+	case errors.Is(err, ErrMissingSecret):
+		return "missing_secret"
 	default:
 		return "error"
 	}

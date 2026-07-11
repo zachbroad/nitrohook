@@ -178,6 +178,60 @@ func TestBearerScheme(t *testing.T) {
 	}
 }
 
+// An HMAC scheme with an empty secret must never authenticate, even when the
+// attacker computes a "valid" HMAC-with-empty-key signature.
+func TestHMACEmptySecretFailsClosed(t *testing.T) {
+	secret := ""
+	body := []byte("Hello, World!")
+	cfg := Config{
+		Scheme: SchemeHMAC, Algo: "sha256", Encoding: "hex",
+		SigHeader: "X-Hub-Signature-256", SigParser: "plain",
+		SigPrefix: "sha256=", Template: "raw_body",
+		Secret: secret,
+	}
+	h := http.Header{}
+	h.Set("X-Hub-Signature-256", "sha256="+hmacHex(secret, string(body)))
+	if err := Verify(cfg, h, body, time.Unix(0, 0)); err == nil {
+		t.Fatalf("expected empty-secret HMAC config to fail closed, got nil error")
+	}
+}
+
+// A token scheme with an empty configured token must never authenticate,
+// even when the request sends an empty token header (ConstantTimeCompare
+// would otherwise treat "" == "" as a match).
+func TestTokenEmptySecretFailsClosed(t *testing.T) {
+	cfg := Config{Scheme: SchemeToken, TokenHdr: "X-Gitlab-Token", Token: ""}
+	h := http.Header{}
+	h.Set("X-Gitlab-Token", "")
+	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err == nil {
+		t.Fatalf("expected empty-token config to fail closed, got nil error")
+	}
+}
+
+// A bearer scheme with an empty configured token must never authenticate.
+func TestBearerEmptySecretFailsClosed(t *testing.T) {
+	cfg := Config{Scheme: SchemeBearer, Token: ""}
+	h := http.Header{}
+	h.Set("Authorization", "Bearer ")
+	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err == nil {
+		t.Fatalf("expected empty-token bearer config to fail closed, got nil error")
+	}
+}
+
+// An ed25519 scheme with an empty public key must never authenticate.
+func TestEd25519EmptyPublicKeyFailsClosed(t *testing.T) {
+	cfg := Config{
+		Scheme: SchemeEd25519, SigHeader: "X-Signature-Ed25519",
+		TSHeader: "X-Signature-Timestamp", PublicKey: "",
+	}
+	h := http.Header{}
+	h.Set("X-Signature-Ed25519", "aa")
+	h.Set("X-Signature-Timestamp", "1700000000")
+	if err := Verify(cfg, h, []byte("body"), time.Unix(0, 0)); err != ErrBadSignature {
+		t.Fatalf("expected ErrBadSignature for empty public key, got %v", err)
+	}
+}
+
 func TestEd25519Scheme(t *testing.T) {
 	pub, priv, err := ed25519.GenerateKey(nil)
 	if err != nil {

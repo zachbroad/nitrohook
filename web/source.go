@@ -473,15 +473,37 @@ func (h *Handler) UpdateSourceAuth(c *gin.Context) {
 		if !ok {
 			authErr = "Unknown preset"
 		} else {
-			base.Secret = strings.TrimSpace(c.PostForm("secret"))
-			base.Token = strings.TrimSpace(c.PostForm("secret")) // token/bearer reuse the secret field
-			base.PublicKey = strings.TrimSpace(c.PostForm("public_key"))
-			raw, _ := json.Marshal(base)
-			if _, err := h.store.Sources.SetAuthConfig(c.Request.Context(), slug, raw); err != nil {
-				authErr = "Failed to save authentication"
-			} else {
-				authOK = "Authentication saved"
-				cfg = base
+			secret := strings.TrimSpace(c.PostForm("secret"))
+			publicKey := strings.TrimSpace(c.PostForm("public_key"))
+
+			var presetInfo inboundauth.PresetInfo
+			for _, p := range inboundauth.PresetNames() {
+				if p.Name == presetName {
+					presetInfo = p
+					break
+				}
+			}
+
+			switch {
+			case presetInfo.NeedsSecret && secret == "":
+				// Refuse to overwrite an existing (possibly good) secret with
+				// a blank one. The secret field is type="password" and never
+				// repopulated, so re-saving the card (e.g. to change some
+				// other setting) must not silently disable authentication.
+				authErr = "A secret is required for this provider"
+			case presetInfo.NeedsPublicKey && publicKey == "":
+				authErr = "A public key is required for this provider"
+			default:
+				base.Secret = secret
+				base.Token = secret // token/bearer reuse the secret field
+				base.PublicKey = publicKey
+				raw, _ := json.Marshal(base)
+				if _, err := h.store.Sources.SetAuthConfig(c.Request.Context(), slug, raw); err != nil {
+					authErr = "Failed to save authentication"
+				} else {
+					authOK = "Authentication saved"
+					cfg = base
+				}
 			}
 		}
 	}
