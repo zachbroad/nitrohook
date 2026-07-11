@@ -49,10 +49,16 @@ export function CreateSourceDialog() {
   })
 
   const onSubmit = async (values: FormValues) => {
-    const created = await createSource.mutateAsync(values)
-    setOpen(false)
-    reset()
-    navigate(`/sources/${created.slug}`)
+    try {
+      const created = await createSource.mutateAsync(values)
+      setOpen(false)
+      reset()
+      navigate(`/sources/${created.slug}`)
+    } catch {
+      // Failure is surfaced by the mutation's onError toast; keep the dialog
+      // open so the user can retry, and swallow the rejection here so it
+      // doesn't become an unhandled promise rejection.
+    }
   }
 
   return (
