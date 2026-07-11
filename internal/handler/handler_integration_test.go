@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/zachbroad/nitrohook/internal/handler"
 	"github.com/zachbroad/nitrohook/internal/model"
+	"github.com/zachbroad/nitrohook/internal/store"
 	"github.com/zachbroad/nitrohook/internal/testutil"
 )
 
@@ -19,7 +20,7 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func setupRouter(t *testing.T) (*gin.Engine, func()) {
+func setupRouter(t *testing.T) (*gin.Engine, *store.Store, func()) {
 	t.Helper()
 	s, _ := testutil.SetupTestDB(t)
 	rdb := testutil.SetupTestRedis(t)
@@ -51,7 +52,7 @@ func setupRouter(t *testing.T) (*gin.Engine, func()) {
 	deliveries.GET("/:id", deliveryH.Get)
 	deliveries.GET("/:id/attempts", deliveryH.ListAttempts)
 
-	return r, func() {}
+	return r, s, func() {}
 }
 
 func createSource(t *testing.T, r *gin.Engine, name, slug string) {
@@ -67,7 +68,7 @@ func createSource(t *testing.T, r *gin.Engine, name, slug string) {
 }
 
 func TestWebhookIngest(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	createSource(t, r, "Ingest Test", "ingest-test")
@@ -91,7 +92,7 @@ func TestWebhookIngest(t *testing.T) {
 }
 
 func TestWebhookIngestIdempotency(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	createSource(t, r, "Idem Test", "idem-test")
@@ -122,7 +123,7 @@ func TestWebhookIngestIdempotency(t *testing.T) {
 }
 
 func TestWebhookIngestInvalidJSON(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	createSource(t, r, "Invalid JSON", "invalid-json")
@@ -138,7 +139,7 @@ func TestWebhookIngestInvalidJSON(t *testing.T) {
 }
 
 func TestWebhookIngestUnknownSource(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	req := httptest.NewRequest(http.MethodPost, "/webhooks/nonexistent", bytes.NewBufferString(`{}`))
@@ -152,7 +153,7 @@ func TestWebhookIngestUnknownSource(t *testing.T) {
 }
 
 func TestSourceCRUDEndpoints(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	// Create
@@ -194,7 +195,7 @@ func TestSourceCRUDEndpoints(t *testing.T) {
 }
 
 func TestActionCRUDEndpoints(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	// Need dispatchers registered for validation
@@ -256,7 +257,7 @@ func TestActionCRUDEndpoints(t *testing.T) {
 }
 
 func TestDeliveryListEndpoint(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	createSource(t, r, "Del List", "del-list")
