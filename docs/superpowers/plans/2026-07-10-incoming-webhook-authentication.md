@@ -1329,13 +1329,14 @@ git commit -m "feat(auth): verify incoming webhooks before persistence"
 
 **Interfaces:**
 - Consumes: `store.SetAuthConfig`, `inboundauth.Preset`, `inboundauth.PresetNames`.
-- Produces: `POST /sources/:slug/auth` → re-rendered `auth-card` fragment; `sourceData.AuthPresets []inboundauth.Preset`, `sourceData.AuthConfig inboundauth.Config`, `sourceData.AuthError`, `sourceData.AuthSuccess`.
+- Produces: `POST /sources/:slug/auth` → re-rendered `auth-card` fragment; `sourceData.AuthPresets []inboundauth.PresetInfo`, `sourceData.AuthConfig inboundauth.Config`, `sourceData.AuthError`, `sourceData.AuthSuccess`.
+- Note: `PresetNames()` returns `[]inboundauth.PresetInfo` (the struct was named `PresetInfo` in Task 7 to avoid colliding with the `Preset(name)` function). Use `PresetInfo`, not `Preset`, as the field/element type.
 
 - [ ] **Step 1: Extend `sourceData`**
 
 In `web/handler.go`, add to the `sourceData` struct and import `inboundauth`:
 ```go
-	AuthPresets   []inboundauth.Preset
+	AuthPresets   []inboundauth.PresetInfo
 	AuthConfig    inboundauth.Config
 	AuthEnabled   bool
 	AuthError     string
