@@ -1,4 +1,4 @@
-.PHONY: run-api run-worker build test test-unit test-integration test-all docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db
+.PHONY: run-api run-worker build test test-unit test-integration test-all docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db ui-dev ui-build
 
 DATABASE_URL ?= postgres://nitrohook:nitrohook@localhost:5432/nitrohook?sslmode=disable
 
@@ -50,3 +50,9 @@ create-db:
 	psql -d postgres -c "CREATE ROLE nitrohook WITH LOGIN PASSWORD 'nitrohook';" 2>/dev/null || true
 	psql -d postgres -c "CREATE DATABASE nitrohook OWNER nitrohook;" 2>/dev/null || true
 	psql -d nitrohook -c "GRANT ALL ON SCHEMA public TO nitrohook;" 2>/dev/null || true
+
+ui-dev: ## Run the React admin SPA dev server
+	cd web/ui && npm run dev
+
+ui-build: ## Build the React admin SPA
+	cd web/ui && npm run build
