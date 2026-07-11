@@ -7,6 +7,7 @@ import { SourceOverview } from "./routes/source-overview"
 import { SourceActions } from "./routes/source-actions"
 import { SourceScript } from "./routes/source-script"
 import { SourceEvents } from "./routes/source-events"
+import { DeliveryDetail } from "./routes/delivery-detail"
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/sources" replace /> },
@@ -28,6 +29,9 @@ export const router = createBrowserRouter([
   },
   {
     path: "/deliveries", element: <DeliveriesLayout />,
-    children: [{ index: true, element: <EmptyState title="Select a delivery" /> }],
+    children: [
+      { index: true, element: <EmptyState title="Select a delivery" /> },
+      { path: ":id", element: <DeliveryDetail /> },
+    ],
   },
 ])
