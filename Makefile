@@ -1,6 +1,25 @@
-.PHONY: run-api run-worker build test test-unit test-integration test-all docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db ui-dev ui-build
+.PHONY: dev dev-setup dev-down run-api run-worker run-mcp build test test-unit test-integration test-all docker-build docker-up docker-down migrate-up migrate-down migrate-create create-db
 
 DATABASE_URL ?= postgres://nitrohook:nitrohook@localhost:5432/nitrohook?sslmode=disable
+
+# dev: one-command dev loop. Starts Postgres + Redis in Docker (waits until
+# healthy), applies migrations via the API binary, then runs the API + in-process
+# worker under Air for hot reload. Ctrl-C stops Air; infra keeps running (use
+# `make dev-down` to stop it). Requires: Go, Docker, and Air (`make dev-setup`).
+dev:
+	@command -v air >/dev/null 2>&1 || { \
+		echo "air not found. Install it with: make dev-setup"; exit 1; }
+	docker compose up -d --wait postgres redis
+	go run ./cmd/api --migrate
+	air
+
+# dev-setup: install the Air hot-reload tool.
+dev-setup:
+	go install github.com/air-verse/air@latest
+
+# dev-down: stop the dev infra (Postgres + Redis) started by `make dev`.
+dev-down:
+	docker compose down
 
 run-api:
 	go run ./cmd/api
@@ -8,9 +27,13 @@ run-api:
 run-worker:
 	go run ./cmd/worker
 
+run-mcp:
+	go run ./cmd/mcp
+
 build:
 	go build -o bin/api ./cmd/api
 	go build -o bin/worker ./cmd/worker
+	go build -o bin/mcp ./cmd/mcp
 
 test:
 	go test ./...
@@ -18,11 +41,14 @@ test:
 test-unit:
 	go test ./...
 
+# Integration tests share a single Postgres DB and Redis instance, and each
+# test's setup truncates/flushes globally. -p 1 serializes package test binaries
+# so packages can't destroy each other's in-flight rows (see TestWorkerRetryFlow).
 test-integration:
-	go test -tags=integration ./...
+	go test -tags=integration -p 1 ./...
 
 test-all:
-	go test -tags=integration ./...
+	go test -tags=integration -p 1 ./...
 
 docker-build:
 	docker compose build

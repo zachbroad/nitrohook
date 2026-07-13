@@ -184,7 +184,7 @@ func TestDeliveryLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get by ID: %v", err)
 	}
-	if string(got.Payload) != `{"event":"push"}` {
+	if !testutil.JSONEqual(t, got.Payload, []byte(`{"event":"push"}`)) {
 		t.Fatalf("expected payload preserved, got %q", string(got.Payload))
 	}
 

@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"github.com/zachbroad/nitrohook/internal/inboundauth"
 	"github.com/zachbroad/nitrohook/internal/metrics"
 	"github.com/zachbroad/nitrohook/internal/model"
 	"github.com/zachbroad/nitrohook/internal/store"
@@ -44,6 +45,21 @@ func (h *WebhookHandler) Ingest(c *gin.Context) {
 
 	if !json.Valid(body) {
 		c.String(http.StatusBadRequest, "invalid JSON payload")
+		return
+	}
+
+	// Authenticate the request against the source's configured scheme.
+	authCfg, err := inboundauth.ParseConfig(src.AuthConfig)
+	if err != nil {
+		slog.Error("invalid source auth config", "error", err, "slug", sourceSlug)
+		c.String(http.StatusInternalServerError, "invalid auth configuration")
+		return
+	}
+	if err := inboundauth.Verify(authCfg, c.Request.Header, body, time.Now()); err != nil {
+		reason := inboundauth.FailureReason(err)
+		metrics.WebhookAuthFailures.WithLabelValues(sourceSlug, reason).Inc()
+		slog.Warn("webhook authentication failed", "slug", sourceSlug, "reason", reason)
+		c.String(http.StatusUnauthorized, "unauthorized")
 		return
 	}
 

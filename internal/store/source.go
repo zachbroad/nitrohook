@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -18,9 +19,9 @@ type SourceStore struct {
 func (s *SourceStore) GetBySlug(ctx context.Context, slug string) (*model.Source, error) {
 	var src model.Source
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, slug, mode, script_body, created_at, updated_at FROM sources WHERE slug = $1`,
+		`SELECT id, name, slug, mode, script_body, auth_config, created_at, updated_at FROM sources WHERE slug = $1`,
 		slug,
-	).Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.CreatedAt, &src.UpdatedAt)
+	).Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.AuthConfig, &src.CreatedAt, &src.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get source by slug: %w", err)
 	}
@@ -30,9 +31,9 @@ func (s *SourceStore) GetBySlug(ctx context.Context, slug string) (*model.Source
 func (s *SourceStore) GetByID(ctx context.Context, id uuid.UUID) (*model.Source, error) {
 	var src model.Source
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, slug, mode, script_body, created_at, updated_at FROM sources WHERE id = $1`,
+		`SELECT id, name, slug, mode, script_body, auth_config, created_at, updated_at FROM sources WHERE id = $1`,
 		id,
-	).Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.CreatedAt, &src.UpdatedAt)
+	).Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.AuthConfig, &src.CreatedAt, &src.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get source by id: %w", err)
 	}
@@ -41,7 +42,7 @@ func (s *SourceStore) GetByID(ctx context.Context, id uuid.UUID) (*model.Source,
 
 func (s *SourceStore) List(ctx context.Context) ([]model.Source, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, name, slug, mode, script_body, created_at, updated_at FROM sources ORDER BY created_at DESC`,
+		`SELECT id, name, slug, mode, script_body, auth_config, created_at, updated_at FROM sources ORDER BY created_at DESC`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list sources: %w", err)
@@ -51,7 +52,7 @@ func (s *SourceStore) List(ctx context.Context) ([]model.Source, error) {
 	sources := make([]model.Source, 0)
 	for rows.Next() {
 		var src model.Source
-		if err := rows.Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.CreatedAt, &src.UpdatedAt); err != nil {
+		if err := rows.Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.AuthConfig, &src.CreatedAt, &src.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan source: %w", err)
 		}
 		sources = append(sources, src)
@@ -63,9 +64,9 @@ func (s *SourceStore) Create(ctx context.Context, name, slug, mode string, scrip
 	var src model.Source
 	err := s.pool.QueryRow(ctx,
 		`INSERT INTO sources (name, slug, mode, script_body) VALUES ($1, $2, $3, $4)
-		 RETURNING id, name, slug, mode, script_body, created_at, updated_at`,
+		 RETURNING id, name, slug, mode, script_body, auth_config, created_at, updated_at`,
 		name, slug, mode, scriptBody,
-	).Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.CreatedAt, &src.UpdatedAt)
+	).Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.AuthConfig, &src.CreatedAt, &src.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("create source: %w", err)
 	}
@@ -92,9 +93,9 @@ func (s *SourceStore) Update(ctx context.Context, slug string, name *string, mod
 				script_body = NULL,
 				updated_at  = $4
 			 WHERE slug = $1
-			 RETURNING id, name, slug, mode, script_body, created_at, updated_at`,
+			 RETURNING id, name, slug, mode, script_body, auth_config, created_at, updated_at`,
 			slug, name, mode, time.Now(),
-		).Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.CreatedAt, &src.UpdatedAt)
+		).Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.AuthConfig, &src.CreatedAt, &src.UpdatedAt)
 	} else {
 		err = s.pool.QueryRow(ctx,
 			`UPDATE sources SET
@@ -103,15 +104,33 @@ func (s *SourceStore) Update(ctx context.Context, slug string, name *string, mod
 				script_body = COALESCE($4, script_body),
 				updated_at  = $5
 			 WHERE slug = $1
-			 RETURNING id, name, slug, mode, script_body, created_at, updated_at`,
+			 RETURNING id, name, slug, mode, script_body, auth_config, created_at, updated_at`,
 			slug, name, mode, scriptArg, time.Now(),
-		).Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.CreatedAt, &src.UpdatedAt)
+		).Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.AuthConfig, &src.CreatedAt, &src.UpdatedAt)
 	}
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("source not found")
 		}
 		return nil, fmt.Errorf("update source: %w", err)
+	}
+	return &src, nil
+}
+
+// SetAuthConfig replaces a source's auth_config. Passing nil clears it (scheme "none").
+func (s *SourceStore) SetAuthConfig(ctx context.Context, slug string, cfg json.RawMessage) (*model.Source, error) {
+	var src model.Source
+	err := s.pool.QueryRow(ctx,
+		`UPDATE sources SET auth_config = $2, updated_at = $3
+		 WHERE slug = $1
+		 RETURNING id, name, slug, mode, script_body, auth_config, created_at, updated_at`,
+		slug, cfg, time.Now(),
+	).Scan(&src.ID, &src.Name, &src.Slug, &src.Mode, &src.ScriptBody, &src.AuthConfig, &src.CreatedAt, &src.UpdatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("source not found")
+		}
+		return nil, fmt.Errorf("set auth config: %w", err)
 	}
 	return &src, nil
 }

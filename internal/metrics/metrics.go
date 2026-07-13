@@ -37,4 +37,9 @@ var (
 		Name: "nitrohook_retryable_attempts",
 		Help: "Number of retryable attempts found by retry poller",
 	})
+
+	WebhookAuthFailures = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "nitrohook_webhook_auth_failures_total",
+		Help: "Total number of rejected webhooks due to failed authentication",
+	}, []string{"source", "reason"})
 )

@@ -125,6 +125,7 @@ func main() {
 	r.POST("/sources/:slug/update", webH.UpdateSource)
 	r.DELETE("/sources/:slug", webH.DeleteSource)
 	r.POST("/sources/:slug/mode", webH.UpdateSourceMode)
+	r.POST("/sources/:slug/auth", webH.UpdateSourceAuth)
 	r.POST("/sources/:slug/script", webH.UpdateSourceScript)
 	r.POST("/sources/:slug/script/clear", webH.ClearSourceScript)
 	r.POST("/sources/:slug/script/test", webH.TestSourceScript)

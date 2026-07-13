@@ -2,7 +2,9 @@ package testutil
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,6 +12,23 @@ import (
 	"github.com/zachbroad/nitrohook/internal/database"
 	"github.com/zachbroad/nitrohook/internal/store"
 )
+
+// JSONEqual reports whether two JSON documents are semantically equal, ignoring
+// key order and insignificant whitespace. Use this instead of comparing raw
+// bytes: payloads round-tripped through Postgres JSONB come back reordered and
+// re-spaced (`{"a":1,"b":2}` → `{"b": 2, "a": 1}`), so byte-exact assertions are
+// wrong. Fails the test if either argument is not valid JSON.
+func JSONEqual(t *testing.T, a, b []byte) bool {
+	t.Helper()
+	var av, bv any
+	if err := json.Unmarshal(a, &av); err != nil {
+		t.Fatalf("JSONEqual: first argument is not valid JSON (%q): %v", a, err)
+	}
+	if err := json.Unmarshal(b, &bv); err != nil {
+		t.Fatalf("JSONEqual: second argument is not valid JSON (%q): %v", b, err)
+	}
+	return reflect.DeepEqual(av, bv)
+}
 
 const (
 	defaultTestDatabaseURL = "postgres://nitrohook:nitrohook@localhost:5432/nitrohook?sslmode=disable"

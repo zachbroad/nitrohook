@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"github.com/zachbroad/nitrohook/internal/inboundauth"
 	"github.com/zachbroad/nitrohook/internal/model"
 	"github.com/zachbroad/nitrohook/internal/script"
 )
@@ -63,10 +64,14 @@ func (h *Handler) SourceDetail(c *gin.Context) {
 		c.String(http.StatusNotFound, "Source not found")
 		return
 	}
+	authCfg, _ := inboundauth.ParseConfig(source.AuthConfig)
 	h.render(c, "source-overview", sourceData{
-		Nav:        "sources",
-		Source:     source,
-		WebhookURL: webhookURL(c, source.Slug),
+		Nav:         "sources",
+		Source:      source,
+		WebhookURL:  webhookURL(c, source.Slug),
+		AuthPresets: inboundauth.PresetNames(),
+		AuthConfig:  authCfg,
+		AuthEnabled: authCfg.Scheme != inboundauth.SchemeNone,
 	})
 }
 
@@ -440,5 +445,85 @@ func (h *Handler) TestSourceScript(c *gin.Context) {
 
 	h.renderFragment(c, "source-script", "script-test-result", scriptTestData{
 		Result: result,
+	})
+}
+
+// UpdateSourceAuth saves a source's incoming-webhook auth config from the auth-card form.
+func (h *Handler) UpdateSourceAuth(c *gin.Context) {
+	slug := c.Param("slug")
+	source, err := h.store.Sources.GetBySlug(c.Request.Context(), slug)
+	if err != nil {
+		c.String(http.StatusNotFound, "Source not found")
+		return
+	}
+
+	enabled := c.PostForm("enabled") == "on" || c.PostForm("enabled") == "true"
+	var authErr, authOK string
+	var cfg inboundauth.Config
+
+	if !enabled {
+		if _, err := h.store.Sources.SetAuthConfig(c.Request.Context(), slug, nil); err != nil {
+			authErr = "Failed to disable authentication"
+		} else {
+			authOK = "Authentication disabled"
+		}
+	} else {
+		presetName := c.PostForm("preset")
+		base, ok := inboundauth.Preset(presetName)
+		if !ok {
+			authErr = "Unknown preset"
+		} else {
+			secret := strings.TrimSpace(c.PostForm("secret"))
+			publicKey := strings.TrimSpace(c.PostForm("public_key"))
+
+			var presetInfo inboundauth.PresetInfo
+			for _, p := range inboundauth.PresetNames() {
+				if p.Name == presetName {
+					presetInfo = p
+					break
+				}
+			}
+
+			switch {
+			case presetInfo.NeedsSecret && secret == "":
+				// Refuse to overwrite an existing (possibly good) secret with
+				// a blank one. The secret field is type="password" and never
+				// repopulated, so re-saving the card (e.g. to change some
+				// other setting) must not silently disable authentication.
+				authErr = "A secret is required for this provider"
+			case presetInfo.NeedsPublicKey && publicKey == "":
+				authErr = "A public key is required for this provider"
+			default:
+				base.Secret = secret
+				base.Token = secret // token/bearer reuse the secret field
+				base.PublicKey = publicKey
+				raw, err := json.Marshal(base)
+				if err != nil {
+					authErr = "Failed to encode authentication config"
+				} else if _, err := h.store.Sources.SetAuthConfig(c.Request.Context(), slug, raw); err != nil {
+					authErr = "Failed to save authentication"
+				} else {
+					authOK = "Authentication saved"
+					cfg = base
+				}
+			}
+		}
+	}
+
+	source, err = h.store.Sources.GetBySlug(c.Request.Context(), slug)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Failed to reload source")
+		return
+	}
+	if cfg.Scheme == "" {
+		cfg, _ = inboundauth.ParseConfig(source.AuthConfig)
+	}
+	h.renderFragment(c, "source-overview", "auth-card", sourceData{
+		Source:      source,
+		AuthPresets: inboundauth.PresetNames(),
+		AuthConfig:  cfg,
+		AuthEnabled: cfg.Scheme != inboundauth.SchemeNone,
+		AuthError:   authErr,
+		AuthSuccess: authOK,
 	})
 }
