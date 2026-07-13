@@ -1,12 +1,13 @@
 import { useQueryState } from "nuqs"
 import { AppShell } from "@/components/app-shell"
+import { ErrorState } from "@/components/error-state"
 import { ListPane } from "@/components/list-pane"
 import { Input } from "@/components/ui/input"
 import { useSources } from "@/lib/queries"
 import { CreateSourceDialog } from "./create-source-dialog"
 
 export function SourcesLayout() {
-  const { data: sources = [], isLoading } = useSources()
+  const { data: sources = [], isLoading, isError, error, refetch } = useSources()
   const [search, setSearch] = useQueryState("q", { defaultValue: "" })
 
   const query = search.trim().toLowerCase()
@@ -28,6 +29,9 @@ export function SourcesLayout() {
               />
             </div>
           }
+          error={isError
+            ? <ErrorState title="Couldn't load sources" error={error} onRetry={() => refetch()} />
+            : undefined}
           empty={isLoading ? "Loading…" : query ? "No matching sources" : "No sources yet"}
           items={filtered.map((s) => ({
             key: s.id,

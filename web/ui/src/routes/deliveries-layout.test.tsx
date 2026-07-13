@@ -41,3 +41,14 @@ test("an invalid ?status= value falls back to showing everything", async () => {
   expect(await screen.findByText("d1-abcde")).toBeInTheDocument()
   expect(screen.getByText("d2-abcde")).toBeInTheDocument()
 })
+
+test("shows error panel instead of 'No deliveries yet' when fetch fails", async () => {
+  vi.stubGlobal("fetch", vi.fn(() =>
+    Promise.resolve(new Response("internal error", { status: 500 })),
+  ))
+  renderRoutes(routes, "/deliveries")
+
+  expect(await screen.findByText("Couldn't load deliveries")).toBeInTheDocument()
+  expect(screen.getByText("internal error")).toBeInTheDocument()
+  expect(screen.queryByText("No deliveries yet")).not.toBeInTheDocument()
+})

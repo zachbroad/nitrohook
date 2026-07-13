@@ -1,6 +1,7 @@
 import { parseAsStringLiteral, useQueryState } from "nuqs"
 
 import { AppShell } from "@/components/app-shell"
+import { ErrorState } from "@/components/error-state"
 import { ListPane } from "@/components/list-pane"
 import { StatusBadge } from "@/components/status-badge"
 import { Input } from "@/components/ui/input"
@@ -26,7 +27,7 @@ const STATUS_OPTIONS: { value: DeliveryStatus | "all"; label: string }[] = [
 ]
 
 export function DeliveriesLayout() {
-  const { data: deliveries = [], isLoading } = useDeliveries({})
+  const { data: deliveries = [], isLoading, isError, error, refetch } = useDeliveries({})
   const [status, setStatus] = useQueryState(
     "status",
     parseAsStringLiteral(STATUS_FILTER).withDefault("all"),
@@ -66,6 +67,9 @@ export function DeliveriesLayout() {
               />
             </div>
           }
+          error={isError
+            ? <ErrorState title="Couldn't load deliveries" error={error} onRetry={() => refetch()} />
+            : undefined}
           empty={isLoading ? "Loading…" : query ? "No matching deliveries" : "No deliveries yet"}
           items={filtered.map((d) => ({
             key: d.id,
