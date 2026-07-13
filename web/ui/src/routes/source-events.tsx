@@ -1,6 +1,8 @@
+import * as React from "react"
 import { useParams, useSearchParams } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
   TableBody,
@@ -17,12 +19,13 @@ import {
 } from "@/components/ui/dialog"
 import { StatusBadge } from "@/components/status-badge"
 import { DeliveryDetailBody } from "@/components/delivery-detail-body"
+import { ErrorState } from "@/components/error-state"
 import {
   useAttempts,
   useDelivery,
   useDeliveries,
   useForwardAll,
-  useForwardDelivery,
+  useForwardSelected,
 } from "@/lib/queries"
 import type { Delivery } from "@/lib/types"
 import { formatDate } from "@/lib/utils"
@@ -64,14 +67,35 @@ function DeliveryModal({
 export function SourceEvents() {
   const { slug = "" } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { data: deliveries = [], isLoading } = useDeliveries(
+  const { data: deliveries = [], isLoading, isError, error, refetch } = useDeliveries(
     { source: slug },
     { refetchInterval: 3000 },
   )
-  const forwardDelivery = useForwardDelivery()
+  const forwardSelected = useForwardSelected()
   const forwardAll = useForwardAll(slug)
 
-  const hasRecorded = deliveries.some((d: Delivery) => d.status === "recorded")
+  const [selected, setSelected] = React.useState<Set<string>>(new Set())
+  // Only recorded deliveries can be forwarded; a delivery may leave that state
+  // between refetches, so always derive the effective selection from the data.
+  const recordedIds = deliveries
+    .filter((d: Delivery) => d.status === "recorded")
+    .map((d: Delivery) => d.id)
+  const selectedRecorded = recordedIds.filter((id) => selected.has(id))
+  const allSelected = recordedIds.length > 0 && selectedRecorded.length === recordedIds.length
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+  const toggleAll = (checked: boolean) => {
+    setSelected(checked ? new Set(recordedIds) : new Set())
+  }
+
+  const hasRecorded = recordedIds.length > 0
   const selectedId = searchParams.get("delivery")
 
   const openDelivery = (id: string) => {
@@ -93,19 +117,36 @@ export function SourceEvents() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-muted-foreground">Events</h2>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!hasRecorded || forwardAll.isPending}
-          onClick={() => forwardAll.mutate()}
-        >
-          Forward all
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={selectedRecorded.length === 0 || forwardSelected.isPending}
+            onClick={() =>
+              forwardSelected.mutate(selectedRecorded, {
+                onSuccess: () => setSelected(new Set()),
+              })
+            }
+          >
+            Forward selected{selectedRecorded.length > 0 && ` (${selectedRecorded.length})`}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!hasRecorded || forwardAll.isPending}
+            onClick={() => forwardAll.mutate()}
+          >
+            Forward all
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="p-4 text-sm text-muted-foreground">Loading…</div>
+      ) : isError ? (
+        <ErrorState title="Couldn't load deliveries" error={error} onRetry={() => refetch()} />
       ) : deliveries.length === 0 ? (
         <div className="p-4 text-sm text-muted-foreground">
           No deliveries recorded yet.
@@ -114,11 +155,19 @@ export function SourceEvents() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8">
+                <Checkbox
+                  aria-label="Select all forwardable deliveries"
+                  disabled={!hasRecorded}
+                  checked={allSelected}
+                  indeterminate={selectedRecorded.length > 0 && !allSelected}
+                  onCheckedChange={(checked) => toggleAll(checked === true)}
+                />
+              </TableHead>
               <TableHead>Received</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Idempotency key</TableHead>
               <TableHead className="text-right">Retries</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -128,6 +177,15 @@ export function SourceEvents() {
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => openDelivery(delivery.id)}
               >
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  {delivery.status === "recorded" && (
+                    <Checkbox
+                      aria-label={`Select delivery ${delivery.id.slice(0, 8)}`}
+                      checked={selected.has(delivery.id)}
+                      onCheckedChange={(checked) => toggleOne(delivery.id, checked === true)}
+                    />
+                  )}
+                </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {formatDate(delivery.received_at)}
                 </TableCell>
@@ -139,22 +197,6 @@ export function SourceEvents() {
                 </TableCell>
                 <TableCell className="text-right text-sm text-muted-foreground">
                   {delivery.retry_count}
-                </TableCell>
-                <TableCell className="text-right">
-                  {delivery.status === "recorded" && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={forwardDelivery.isPending}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        forwardDelivery.mutate(delivery.id)
-                      }}
-                    >
-                      Forward
-                    </Button>
-                  )}
                 </TableCell>
               </TableRow>
             ))}

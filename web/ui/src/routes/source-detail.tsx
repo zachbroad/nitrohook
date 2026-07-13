@@ -1,6 +1,8 @@
 import { NavLink, Outlet, useParams } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { useSource } from "@/lib/queries"
+import { ApiError } from "@/lib/api"
+import { ErrorState } from "@/components/error-state"
 
 const TABS = [
   { path: "overview", label: "Overview" },
@@ -11,13 +13,17 @@ const TABS = [
 
 export function SourceDetail() {
   const { slug = "" } = useParams()
-  const { data: source, isLoading } = useSource(slug)
+  const { data: source, isLoading, isError, error, refetch } = useSource(slug)
 
   if (isLoading) {
     return <div className="p-4 text-sm text-muted-foreground">Loading…</div>
   }
-  if (!source) {
+  const notFound = error instanceof ApiError && error.status === 404
+  if (notFound || (!source && !isError)) {
     return <div className="p-4 text-sm text-muted-foreground">Source not found</div>
+  }
+  if (isError || !source) {
+    return <ErrorState title="Couldn't load source" error={error} onRetry={() => refetch()} />
   }
 
   return (

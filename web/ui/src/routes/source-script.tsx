@@ -56,7 +56,7 @@ export function SourceScript() {
   const { slug = "" } = useParams()
   const { data: source } = useSource(slug)
   const updateSource = useUpdateSource(slug)
-  const { data: deliveries } = useDeliveries({ source: slug })
+  const { data: deliveries, isError: deliveriesError } = useDeliveries({ source: slug })
 
   const [scriptBody, setScriptBody] = React.useState("")
   const [deliveryId, setDeliveryId] = React.useState<string | null>(null)
@@ -104,7 +104,11 @@ export function SourceScript() {
       <div className="grid gap-3 rounded-lg border p-4">
         <Label>Test run</Label>
 
-        {!hasDeliveries ? (
+        {deliveriesError ? (
+          <p className="text-sm text-destructive">
+            Couldn't load deliveries for test runs. Reload the page to try again.
+          </p>
+        ) : !hasDeliveries ? (
           <p className="text-sm text-muted-foreground">
             You need at least one recorded delivery to test this script against.
           </p>

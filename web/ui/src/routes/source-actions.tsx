@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ActionTypeBadge } from "@/components/action-type-badge"
+import { ErrorState } from "@/components/error-state"
 import { useActions, useDeleteAction, useUpdateAction } from "@/lib/queries"
 import type { Action } from "@/lib/types"
 import { ActionForm } from "./action-form"
@@ -38,7 +39,7 @@ function summarize(action: Action): string {
 export function SourceActions() {
   const { slug = "" } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { data: actions = [], isLoading } = useActions(slug)
+  const { data: actions = [], isLoading, isError, error, refetch } = useActions(slug)
   const updateAction = useUpdateAction(slug)
   const deleteAction = useDeleteAction(slug)
 
@@ -74,6 +75,8 @@ export function SourceActions() {
 
       {isLoading ? (
         <div className="p-4 text-sm text-muted-foreground">Loading…</div>
+      ) : isError ? (
+        <ErrorState title="Couldn't load actions" error={error} onRetry={() => refetch()} />
       ) : actions.length === 0 ? (
         <div className="p-4 text-sm text-muted-foreground">
           No actions yet. Create one to start fanning out deliveries.
