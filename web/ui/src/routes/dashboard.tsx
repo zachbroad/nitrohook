@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 import { ArrowRightIcon, PlusIcon } from "lucide-react"
 
+import { ErrorState } from "@/components/error-state"
 import { Header } from "@/components/header"
 import { StatusBadge } from "@/components/status-badge"
 import { Badge } from "@/components/ui/badge"
@@ -26,11 +27,14 @@ const STATUS_DOT: Record<DeliveryStatus, string> = {
 }
 
 export function Dashboard() {
-  const { data: sources = [], isLoading: sourcesLoading } = useSources()
-  const { data: deliveries = [], isLoading: deliveriesLoading } = useDeliveries(
-    { limit: WINDOW_LIMIT },
-    { refetchInterval: 10_000 },
-  )
+  const {
+    data: sources = [], isLoading: sourcesLoading,
+    isError: sourcesError, error: sourcesErr, refetch: refetchSources,
+  } = useSources()
+  const {
+    data: deliveries = [], isLoading: deliveriesLoading,
+    isError: deliveriesError, error: deliveriesErr, refetch: refetchDeliveries,
+  } = useDeliveries({ limit: WINDOW_LIMIT }, { refetchInterval: 10_000 })
   const loading = sourcesLoading || deliveriesLoading
 
   const now = Date.now()
@@ -61,25 +65,25 @@ export function Dashboard() {
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatTile
               label="Sources"
-              value={loading ? null : String(sources.length)}
-              hint={`${activeSources} active · ${sources.length - activeSources} recording`}
+              value={sourcesError ? "—" : loading ? null : String(sources.length)}
+              hint={sourcesError ? "unavailable" : `${activeSources} active · ${sources.length - activeSources} recording`}
             />
             <StatTile
               label="Deliveries · 24h"
-              value={loading ? null : String(last24h.length)}
-              hint="received in the last day"
+              value={deliveriesError ? "—" : loading ? null : String(last24h.length)}
+              hint={deliveriesError ? "unavailable" : "received in the last day"}
             />
             <StatTile
               label="Failed"
-              value={loading ? null : String(failed)}
-              hint={failed > 0 ? "needs attention" : "all clear"}
-              alert={failed > 0}
+              value={deliveriesError ? "—" : loading ? null : String(failed)}
+              hint={deliveriesError ? "unavailable" : failed > 0 ? "needs attention" : "all clear"}
+              alert={!deliveriesError && failed > 0}
               to="/deliveries?status=failed"
             />
             <StatTile
               label="Success rate"
-              value={loading ? null : successRate === null ? "—" : `${successRate}%`}
-              hint={terminal === 0 ? "no completed deliveries yet" : `of ${terminal} finished deliveries`}
+              value={deliveriesError ? "—" : loading ? null : successRate === null ? "—" : `${successRate}%`}
+              hint={deliveriesError ? "unavailable" : terminal === 0 ? "no completed deliveries yet" : `of ${terminal} finished deliveries`}
             />
           </div>
 
@@ -89,8 +93,14 @@ export function Dashboard() {
               <span className="text-xs text-muted-foreground">{last24h.length} deliveries</span>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <HourlyBars deliveries={last24h} now={now} />
-              <StatusDistribution deliveries={deliveries} />
+              {deliveriesError ? (
+                <ErrorState title="Couldn't load deliveries" error={deliveriesErr} onRetry={() => refetchDeliveries()} />
+              ) : (
+                <>
+                  <HourlyBars deliveries={last24h} now={now} />
+                  <StatusDistribution deliveries={deliveries} />
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -101,7 +111,9 @@ export function Dashboard() {
                 <ViewAll to="/deliveries" />
               </CardHeader>
               <CardContent className="flex flex-col gap-1">
-                {deliveriesLoading ? (
+                {deliveriesError ? (
+                  <ErrorState title="Couldn't load deliveries" error={deliveriesErr} onRetry={() => refetchDeliveries()} />
+                ) : deliveriesLoading ? (
                   <RowSkeletons />
                 ) : deliveries.length === 0 ? (
                   <p className="py-4 text-sm text-muted-foreground">
@@ -134,7 +146,9 @@ export function Dashboard() {
                 <ViewAll to="/sources" />
               </CardHeader>
               <CardContent className="flex flex-col gap-1">
-                {sourcesLoading ? (
+                {sourcesError ? (
+                  <ErrorState title="Couldn't load sources" error={sourcesErr} onRetry={() => refetchSources()} />
+                ) : sourcesLoading ? (
                   <RowSkeletons />
                 ) : sources.length === 0 ? (
                   <div className="flex flex-col items-start gap-3 py-4">

@@ -61,3 +61,16 @@ test("shows create-source invitation when no sources exist", async () => {
   renderRoutes([{ path: "/", element: <Dashboard /> }], "/")
   expect(await screen.findByText("Create a source")).toBeInTheDocument()
 })
+
+test("shows error panels and dashes instead of fake zeros when the API is unreachable", async () => {
+  vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))))
+  renderRoutes([{ path: "/", element: <Dashboard /> }], "/")
+
+  // Deliveries panel appears in both the Activity and Recent-deliveries cards.
+  expect((await screen.findAllByText("Couldn't load deliveries")).length).toBeGreaterThan(0)
+  expect(screen.getByText("Couldn't load sources")).toBeInTheDocument()
+  expect(screen.queryByText(/No deliveries yet/)).not.toBeInTheDocument()
+  expect(screen.queryByText("Create a source")).not.toBeInTheDocument()
+  // All four stat tiles degrade to em-dashes rather than showing 0.
+  expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(4)
+})
