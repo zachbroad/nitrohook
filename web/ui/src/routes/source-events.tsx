@@ -125,7 +125,7 @@ export function SourceEvents() {
             disabled={selectedRecorded.length === 0 || forwardSelected.isPending}
             onClick={() =>
               forwardSelected.mutate(selectedRecorded, {
-                onSuccess: () => setSelected(new Set()),
+                onSuccess: ({ failedIds }) => setSelected(new Set(failedIds)),
               })
             }
           >

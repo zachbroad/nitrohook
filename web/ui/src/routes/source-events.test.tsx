@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
-import { screen } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { toast } from "sonner"
 import { renderRoutes } from "@/test/render"
 import { SourceEvents } from "./source-events"
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 const deliveries = [
   { id: "d1-recorded0", source_id: "s1", idempotency_key: "k1", headers: {}, payload: {},
@@ -63,4 +66,28 @@ test("forward selected is disabled until something is selected", async () => {
 
   await user.click(await screen.findByLabelText("Select delivery d1-recor"))
   expect(screen.getByRole("button", { name: "Forward selected (1)" })).toBeEnabled()
+})
+
+test("partial forward-selected failure keeps only the failed delivery selected", async () => {
+  fetchMock = vi.fn((input: RequestInfo | URL, opts?: RequestInit): Promise<Response> => {
+    const url = String(input)
+    if (opts?.method === "POST" && url.endsWith("/d1-recorded0/forward")) return Promise.resolve(json({ status: "ok" }))
+    if (opts?.method === "POST" && url.endsWith("/d2-recorded0/forward"))
+      return Promise.resolve(new Response("forward failed", { status: 500 }))
+    if (url.includes("/api/deliveries")) return Promise.resolve(json(deliveries))
+    return Promise.resolve(json([]))
+  })
+  vi.stubGlobal("fetch", fetchMock)
+
+  const user = userEvent.setup()
+  renderRoutes(routes, "/sources/test/events")
+
+  await user.click(await screen.findByLabelText("Select all forwardable deliveries"))
+  await user.click(screen.getByRole("button", { name: "Forward selected (2)" }))
+
+  await waitFor(() =>
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Failed to forward 1 of 2: forward failed"),
+  )
+  expect(screen.getByLabelText("Select delivery d1-recor")).not.toBeChecked()
+  expect(screen.getByLabelText("Select delivery d2-recor")).toBeChecked()
 })

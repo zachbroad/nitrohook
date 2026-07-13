@@ -110,12 +110,20 @@ export function useForwardSelected() {
   return useMutation({
     mutationFn: async (ids: string[]) => {
       const results = await Promise.allSettled(ids.map((id) => api.forwardDelivery(id)))
-      return { forwarded: results.filter((r) => r.status === "fulfilled").length, total: ids.length }
+      const failedIds = ids.filter((_, i) => results[i].status === "rejected")
+      const firstError = results.find(
+        (r): r is PromiseRejectedResult => r.status === "rejected",
+      )?.reason
+      return { total: ids.length, failedIds, firstError }
     },
-    onSuccess: ({ forwarded, total }) => {
+    onSuccess: ({ total, failedIds, firstError }) => {
+      const forwarded = total - failedIds.length
       if (forwarded > 0)
         toast.success(`Forwarded ${forwarded} ${forwarded === 1 ? "delivery" : "deliveries"}`)
-      if (forwarded < total) toast.error(`Failed to forward ${total - forwarded} of ${total}`)
+      if (failedIds.length > 0) {
+        const message = firstError instanceof ApiError ? firstError.message : "Request failed"
+        toast.error(`Failed to forward ${failedIds.length} of ${total}: ${message}`)
+      }
       qc.invalidateQueries({ queryKey: ["deliveries"] })
       qc.invalidateQueries({ queryKey: ["delivery"] })
     },
