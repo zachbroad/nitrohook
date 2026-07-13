@@ -53,3 +53,24 @@ test("renders delivery payload and attempts", async () => {
   expect(await screen.findByText(/"hello"/)).toBeInTheDocument()
   expect(await screen.findByText(/attempt 1/i)).toBeInTheDocument()
 })
+
+test("shows error panel with retry for non-404 failures", async () => {
+  vi.stubGlobal("fetch", vi.fn(() =>
+    Promise.resolve(new Response("internal error", { status: 500 })),
+  ))
+  renderRoutes([{ path: "/deliveries/:id", element: <DeliveryDetail /> }], "/deliveries/d1")
+
+  expect(await screen.findByText("Couldn't load delivery")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
+  expect(screen.queryByText("Delivery not found")).not.toBeInTheDocument()
+})
+
+test("still shows 'Delivery not found' for a 404", async () => {
+  vi.stubGlobal("fetch", vi.fn(() =>
+    Promise.resolve(new Response("delivery not found", { status: 404 })),
+  ))
+  renderRoutes([{ path: "/deliveries/:id", element: <DeliveryDetail /> }], "/deliveries/nope")
+
+  expect(await screen.findByText("Delivery not found")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument()
+})

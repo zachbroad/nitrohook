@@ -3,21 +3,30 @@ import { useParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/status-badge"
 import { DeliveryDetailBody } from "@/components/delivery-detail-body"
+import { ErrorState } from "@/components/error-state"
+import { ApiError } from "@/lib/api"
 import { useAttempts, useDelivery, useForwardDelivery } from "@/lib/queries"
 import { formatDate } from "@/lib/utils"
 
 export function DeliveryDetail() {
   const { id = "" } = useParams()
-  const { data: delivery, isLoading } = useDelivery(id)
-  const { data: attempts = [] } = useAttempts(id)
+  const { data: delivery, isLoading, isError, error, refetch } = useDelivery(id)
+  const {
+    data: attempts = [], isError: attemptsError,
+    error: attemptsErr, refetch: refetchAttempts,
+  } = useAttempts(id)
   const forwardDelivery = useForwardDelivery()
 
   if (isLoading) {
     return <div className="p-4 text-sm text-muted-foreground">Loading…</div>
   }
 
-  if (!delivery) {
+  const notFound = error instanceof ApiError && error.status === 404
+  if (notFound || (!delivery && !isError)) {
     return <div className="p-4 text-sm text-muted-foreground">Delivery not found</div>
+  }
+  if (isError || !delivery) {
+    return <ErrorState title="Couldn't load delivery" error={error} onRetry={() => refetch()} />
   }
 
   return (
@@ -45,6 +54,9 @@ export function DeliveryDetail() {
         )}
       </div>
 
+      {attemptsError && (
+        <ErrorState title="Couldn't load attempts" error={attemptsErr} onRetry={() => refetchAttempts()} />
+      )}
       <DeliveryDetailBody delivery={delivery} attempts={attempts} />
     </div>
   )
