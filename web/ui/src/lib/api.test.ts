@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from "vitest"
-import { apiFetch, ApiError } from "./api"
+import { describe, expect, it, vi, beforeEach, test } from "vitest"
+import { apiFetch, ApiError, shouldRetryQuery } from "./api"
 
 beforeEach(() => { vi.restoreAllMocks() })
 
@@ -18,4 +18,15 @@ describe("apiFetch", () => {
     await expect(apiFetch("/api/x")).rejects.toMatchObject({ status: 400, message: "boom" })
     await expect(apiFetch("/api/x")).rejects.toBeInstanceOf(ApiError)
   })
+})
+
+test("shouldRetryQuery skips 4xx errors", () => {
+  expect(shouldRetryQuery(0, new ApiError(404, "not found"))).toBe(false)
+  expect(shouldRetryQuery(0, new ApiError(400, "bad request"))).toBe(false)
+})
+
+test("shouldRetryQuery retries 5xx and network errors up to 2 times", () => {
+  expect(shouldRetryQuery(0, new ApiError(500, "boom"))).toBe(true)
+  expect(shouldRetryQuery(1, new TypeError("Failed to fetch"))).toBe(true)
+  expect(shouldRetryQuery(2, new ApiError(500, "boom"))).toBe(false)
 })

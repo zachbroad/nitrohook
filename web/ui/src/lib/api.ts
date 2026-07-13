@@ -55,3 +55,10 @@ export const forwardDelivery = (id: string) =>
   apiFetch<{ status: string }>(`/api/deliveries/${id}/forward`, { method: "POST" })
 export const forwardAll = (slug: string) =>
   apiFetch<{ forwarded: number }>(`/api/sources/${slug}/deliveries/forward-all`, { method: "POST" })
+
+// Query retry policy: 4xx responses are deterministic (retrying a 404 three
+// times just delays the error UI), so only network failures and 5xx retry.
+export function shouldRetryQuery(failureCount: number, error: unknown): boolean {
+  if (error instanceof ApiError && error.status < 500) return false
+  return failureCount < 2
+}
