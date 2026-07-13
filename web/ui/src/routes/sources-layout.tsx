@@ -1,17 +1,35 @@
+import { useQueryState } from "nuqs"
 import { AppShell } from "@/components/app-shell"
 import { ListPane } from "@/components/list-pane"
+import { Input } from "@/components/ui/input"
 import { useSources } from "@/lib/queries"
 import { CreateSourceDialog } from "./create-source-dialog"
 
 export function SourcesLayout() {
   const { data: sources = [], isLoading } = useSources()
+  const [search, setSearch] = useQueryState("q", { defaultValue: "" })
+
+  const query = search.trim().toLowerCase()
+  const filtered = query
+    ? sources.filter((s) => s.name.toLowerCase().includes(query) || s.slug.toLowerCase().includes(query))
+    : sources
+
   return (
     <AppShell
       list={
         <ListPane
-          header={<CreateSourceDialog />}
-          empty={isLoading ? "Loading…" : "No sources yet"}
-          items={sources.map((s) => ({
+          header={
+            <div className="flex flex-col gap-2">
+              <CreateSourceDialog />
+              <Input
+                placeholder="Search sources…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value || null)}
+              />
+            </div>
+          }
+          empty={isLoading ? "Loading…" : query ? "No matching sources" : "No sources yet"}
+          items={filtered.map((s) => ({
             key: s.id,
             to: `/sources/${s.slug}`,
             label: (

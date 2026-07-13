@@ -3,15 +3,21 @@
 DATABASE_URL ?= postgres://nitrohook:nitrohook@localhost:5432/nitrohook?sslmode=disable
 
 # dev: one-command dev loop. Starts Postgres + Redis in Docker (waits until
-# healthy), applies migrations via the API binary, then runs the API + in-process
-# worker under Air for hot reload. Ctrl-C stops Air; infra keeps running (use
-# `make dev-down` to stop it). Requires: Go, Docker, and Air (`make dev-setup`).
+# healthy), applies migrations via the API binary, installs UI deps if missing,
+# then runs the API + in-process worker (Air, hot reload) alongside the
+# React/Vite dev server (http://localhost:5173). Ctrl-C stops both foreground
+# processes; infra keeps running (use `make dev-down` to stop it). Requires: Go,
+# Docker, Node/npm, and Air (`make dev-setup`).
 dev:
 	@command -v air >/dev/null 2>&1 || { \
 		echo "air not found. Install it with: make dev-setup"; exit 1; }
 	docker compose up -d --wait postgres redis
 	go run ./cmd/api --migrate
-	air
+	@[ -d web/ui/node_modules ] || ( echo "Installing UI deps..."; cd web/ui && npm install )
+	@echo "Starting Air (API + worker) and Vite (UI on http://localhost:5173). Ctrl-C stops both."
+	@trap 'kill 0' INT TERM EXIT; \
+		( cd web/ui && npm run dev ) & \
+		air
 
 # dev-setup: install the Air hot-reload tool.
 dev-setup:

@@ -13,7 +13,7 @@ export type DeliveryStatus = "pending" | "processing" | "completed" | "failed" |
 export interface Delivery {
   id: string; source_id: string; idempotency_key: string;
   headers: unknown; payload: unknown; status: DeliveryStatus; received_at: string;
-  transformed_payload?: unknown; transformed_headers?: unknown;
+  transformed_payload?: unknown; transformed_headers?: unknown; retry_count: number;
 }
 export type AttemptStatus = "pending" | "success" | "failed";
 export interface DeliveryAttempt {

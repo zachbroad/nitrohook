@@ -219,12 +219,18 @@ interface ActionFormProps {
   slug: string
   /** Present in edit mode; omit for create mode. */
   action?: Action
-  /** Custom trigger element (e.g. an Edit icon button in a table row). Defaults to a "New action" button. */
-  trigger?: React.ReactElement
+  /** Custom trigger element (e.g. an Edit icon button in a table row). Defaults to a "New action" button.
+   * Omit entirely (with `open`/`onOpenChange`) for a fully controlled dialog with no trigger of its own. */
+  trigger?: React.ReactElement | null
+  /** Controlled open state, e.g. driven by a table row click. Falls back to internal state if omitted. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export function ActionForm({ slug, action, trigger }: ActionFormProps) {
-  const [open, setOpen] = React.useState(false)
+export function ActionForm({ slug, action, trigger, open: openProp, onOpenChange: onOpenChangeProp }: ActionFormProps) {
+  const [openState, setOpenState] = React.useState(false)
+  const open = openProp ?? openState
+  const setOpen = onOpenChangeProp ?? setOpenState
   const isEdit = !!action
   const createAction = useCreateAction(slug)
   const updateAction = useUpdateAction(slug)
@@ -275,7 +281,7 @@ export function ActionForm({ slug, action, trigger }: ActionFormProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={trigger ?? <Button size="sm">New action</Button>} />
+      {trigger !== null && <DialogTrigger render={trigger ?? <Button size="sm">New action</Button>} />}
       <DialogContent>
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogHeader>

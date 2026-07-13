@@ -256,7 +256,7 @@ git commit -m "feat(ui): don't retry 4xx query errors; cap retries at 2"
 - Modify: `web/ui/src/routes/sources-layout.tsx`
 - Modify: `web/ui/src/routes/deliveries-layout.tsx`
 - Test: `web/ui/src/routes/sources-layout.test.tsx` (append)
-- Test: `web/ui/src/routes/deliveries-layout.test.tsx` (create)
+- Test: `web/ui/src/routes/deliveries-layout.test.tsx` (append — the file exists with deep-link filter tests; reuse its fetch-stub helpers)
 
 **Interfaces:**
 - Consumes: `ErrorState` (Task 2).
@@ -285,21 +285,14 @@ test("shows error panel instead of 'No sources yet' when fetch fails, and retrie
 })
 ```
 
-Create `web/ui/src/routes/deliveries-layout.test.tsx`:
+Append to `web/ui/src/routes/deliveries-layout.test.tsx` (it already imports `vi`, `screen`, `renderRoutes`, `DeliveriesLayout`, and defines a `routes` array — reuse them; the per-test `vi.stubGlobal` below overrides the file's `beforeEach` stub):
 
 ```tsx
-import { afterEach, expect, test, vi } from "vitest"
-import { screen } from "@testing-library/react"
-import { renderRoutes } from "@/test/render"
-import { DeliveriesLayout } from "./deliveries-layout"
-
-afterEach(() => vi.restoreAllMocks())
-
 test("shows error panel instead of 'No deliveries yet' when fetch fails", async () => {
   vi.stubGlobal("fetch", vi.fn(() =>
     Promise.resolve(new Response("internal error", { status: 500 })),
   ))
-  renderRoutes([{ path: "/deliveries", element: <DeliveriesLayout /> }], "/deliveries")
+  renderRoutes(routes, "/deliveries")
 
   expect(await screen.findByText("Couldn't load deliveries")).toBeInTheDocument()
   expect(screen.getByText("internal error")).toBeInTheDocument()

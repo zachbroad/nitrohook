@@ -62,6 +62,7 @@ type Delivery struct {
 	ReceivedAt         time.Time       `json:"received_at"`
 	TransformedPayload json.RawMessage `json:"transformed_payload,omitempty"`
 	TransformedHeaders json.RawMessage `json:"transformed_headers,omitempty"`
+	RetryCount         int             `json:"retry_count"`
 }
 
 type AttemptStatus string

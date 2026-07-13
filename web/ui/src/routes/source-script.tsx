@@ -24,6 +24,34 @@ function formatDeliveryLabel(id: string, receivedAt: string) {
   return `${shortId} — ${when}`
 }
 
+/**
+ * Starter scaffold shown when a source has no saved transform script. Mirrors
+ * the default the legacy HTML template rendered (web/templates/source-script.html)
+ * so the editor is never blank on a fresh source.
+ */
+export const DEFAULT_TRANSFORM_SCRIPT = `function transform(event) {
+  // event.payload  — the JSON body (object)
+  // event.headers  — captured headers (object)
+  // event.actions  — [{id, target_url}, ...]
+
+  // Transform the payload
+  event.payload.processed = true;
+
+  // Return null to drop the event
+  // Filter event.actions to route selectively
+
+  return event;
+}`
+
+/**
+ * Seeds the editor from a saved script, falling back to the scaffold when the
+ * source has none. Matches the template's truthiness check: an empty string
+ * (e.g. after Clear) reverts to the scaffold rather than showing a blank editor.
+ */
+export function seedScriptBody(scriptBody: string | null | undefined): string {
+  return scriptBody ? scriptBody : DEFAULT_TRANSFORM_SCRIPT
+}
+
 export function SourceScript() {
   const { slug = "" } = useParams()
   const { data: source } = useSource(slug)
@@ -40,7 +68,7 @@ export function SourceScript() {
   // the stale-until-resolved value would overwrite newly typed characters).
   React.useEffect(() => {
     if (source && seededSlug.current !== slug) {
-      setScriptBody(source.script_body ?? "")
+      setScriptBody(seedScriptBody(source.script_body))
       seededSlug.current = slug
     }
   }, [source, slug])

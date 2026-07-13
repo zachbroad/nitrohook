@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query"
 import { toast } from "sonner"
 import * as api from "./api"
 import { ApiError } from "./api"
@@ -20,8 +20,10 @@ export const useSource = (slug: string) =>
   useQuery({ queryKey: qk.source(slug), queryFn: () => api.getSource(slug), enabled: !!slug })
 export const useActions = (slug: string) =>
   useQuery({ queryKey: qk.actions(slug), queryFn: () => api.listActions(slug), enabled: !!slug })
-export const useDeliveries = (p: { source?: string; limit?: number } = {}) =>
-  useQuery({ queryKey: qk.deliveries(p), queryFn: () => api.listDeliveries(p) })
+export const useDeliveries = (
+  p: { source?: string; limit?: number } = {},
+  opts: Partial<UseQueryOptions<Awaited<ReturnType<typeof api.listDeliveries>>>> = {},
+) => useQuery({ queryKey: qk.deliveries(p), queryFn: () => api.listDeliveries(p), ...opts })
 export const useDelivery = (id: string) =>
   useQuery({ queryKey: qk.delivery(id), queryFn: () => api.getDelivery(id), enabled: !!id })
 export const useAttempts = (id: string) =>
@@ -31,7 +33,10 @@ export function useCreateSource() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: api.createSource, onError,
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.sources }),
+    onSuccess: () => {
+      toast.success("Source created")
+      qc.invalidateQueries({ queryKey: qk.sources })
+    },
   })
 }
 export function useUpdateSource(slug: string) {
@@ -39,6 +44,7 @@ export function useUpdateSource(slug: string) {
   return useMutation({
     mutationFn: (b: Parameters<typeof api.updateSource>[1]) => api.updateSource(slug, b), onError,
     onSuccess: () => {
+      toast.success("Changes saved")
       qc.invalidateQueries({ queryKey: qk.source(slug) })
       qc.invalidateQueries({ queryKey: qk.sources })
     },
@@ -48,28 +54,40 @@ export function useDeleteSource() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: api.deleteSource, onError,
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.sources }),
+    onSuccess: () => {
+      toast.success("Source deleted")
+      qc.invalidateQueries({ queryKey: qk.sources })
+    },
   })
 }
 export function useCreateAction(slug: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (b: Parameters<typeof api.createAction>[1]) => api.createAction(slug, b), onError,
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.actions(slug) }),
+    onSuccess: () => {
+      toast.success("Action created")
+      qc.invalidateQueries({ queryKey: qk.actions(slug) })
+    },
   })
 }
 export function useUpdateAction(slug: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (v: { id: string; body: Record<string, unknown> }) => api.updateAction(slug, v.id, v.body), onError,
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.actions(slug) }),
+    onSuccess: () => {
+      toast.success("Action updated")
+      qc.invalidateQueries({ queryKey: qk.actions(slug) })
+    },
   })
 }
 export function useDeleteAction(slug: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => api.deleteAction(slug, id), onError,
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.actions(slug) }),
+    onSuccess: () => {
+      toast.success("Action deleted")
+      qc.invalidateQueries({ queryKey: qk.actions(slug) })
+    },
   })
 }
 export function useForwardDelivery() {
@@ -78,6 +96,7 @@ export function useForwardDelivery() {
     mutationFn: api.forwardDelivery,
     onError,
     onSuccess: (_data, id) => {
+      toast.success("Delivery forwarded")
       // Forwarding creates a new attempt and changes the delivery's status,
       // so refresh the list plus this delivery's own detail and attempts.
       qc.invalidateQueries({ queryKey: ["deliveries"] })

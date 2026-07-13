@@ -1,5 +1,5 @@
-import { useParams } from "react-router-dom"
-import { PencilIcon, TrashIcon } from "lucide-react"
+import { useParams, useSearchParams } from "react-router-dom"
+import { TrashIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -37,9 +37,28 @@ function summarize(action: Action): string {
 
 export function SourceActions() {
   const { slug = "" } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: actions = [], isLoading } = useActions(slug)
   const updateAction = useUpdateAction(slug)
   const deleteAction = useDeleteAction(slug)
+
+  const selectedActionId = searchParams.get("action")
+  const selectedAction = actions.find((a) => a.id === selectedActionId)
+
+  const openAction = (id: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set("action", id)
+      return next
+    })
+  }
+  const closeAction = () => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete("action")
+      return next
+    })
+  }
 
   const handleDelete = (action: Action) => {
     if (!window.confirm(`Delete this ${action.type} action? This cannot be undone.`)) return
@@ -71,14 +90,18 @@ export function SourceActions() {
           </TableHeader>
           <TableBody>
             {actions.map((action) => (
-              <TableRow key={action.id}>
+              <TableRow
+                key={action.id}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => openAction(action.id)}
+              >
                 <TableCell>
                   <ActionTypeBadge type={action.type} />
                 </TableCell>
                 <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
                   {summarize(action)}
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <Switch
                     checked={action.is_active}
                     onCheckedChange={(checked) =>
@@ -86,31 +109,32 @@ export function SourceActions() {
                     }
                   />
                 </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <ActionForm
-                      slug={slug}
-                      action={action}
-                      trigger={
-                        <Button variant="ghost" size="icon-sm" aria-label="Edit action">
-                          <PencilIcon />
-                        </Button>
-                      }
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Delete action"
-                      onClick={() => handleDelete(action)}
-                    >
-                      <TrashIcon />
-                    </Button>
-                  </div>
+                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Delete action"
+                    onClick={() => handleDelete(action)}
+                  >
+                    <TrashIcon />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+      )}
+
+      {selectedAction && (
+        <ActionForm
+          slug={slug}
+          action={selectedAction}
+          trigger={null}
+          open
+          onOpenChange={(open) => {
+            if (!open) closeAction()
+          }}
+        />
       )}
     </div>
   )
