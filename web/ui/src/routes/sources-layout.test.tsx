@@ -20,7 +20,7 @@ test("renders sources in the list pane", async () => {
 })
 
 test("shows error panel instead of 'No sources yet' when fetch fails, and retries", async () => {
-  const fetchMock = vi.fn(() => Promise.reject(new TypeError("Failed to fetch")))
+  const fetchMock = vi.fn((): Promise<Response> => Promise.reject(new TypeError("Failed to fetch")))
   vi.stubGlobal("fetch", fetchMock)
   renderRoutes([{ path: "/sources", element: <SourcesLayout /> }], "/sources")
 
