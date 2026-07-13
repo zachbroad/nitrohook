@@ -41,11 +41,14 @@ test:
 test-unit:
 	go test ./...
 
+# Integration tests share a single Postgres DB and Redis instance, and each
+# test's setup truncates/flushes globally. -p 1 serializes package test binaries
+# so packages can't destroy each other's in-flight rows (see TestWorkerRetryFlow).
 test-integration:
-	go test -tags=integration ./...
+	go test -tags=integration -p 1 ./...
 
 test-all:
-	go test -tags=integration ./...
+	go test -tags=integration -p 1 ./...
 
 docker-build:
 	docker compose build

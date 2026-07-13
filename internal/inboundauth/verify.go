@@ -235,7 +235,14 @@ func verifyBearer(cfg Config, header http.Header) error {
 	if raw == "" {
 		return ErrMissingSignature
 	}
-	got := strings.TrimPrefix(raw, "Bearer ")
+	// RFC 6750: the auth scheme keyword is case-insensitive and required. A
+	// bare "Authorization: <token>" must not match — strings.TrimPrefix would
+	// otherwise leave it unchanged and compare-equal against a matching token.
+	const prefix = "Bearer "
+	if len(raw) < len(prefix) || !strings.EqualFold(raw[:len(prefix)], prefix) {
+		return ErrBadSignature
+	}
+	got := raw[len(prefix):]
 	if subtle.ConstantTimeCompare([]byte(got), []byte(cfg.Token)) != 1 {
 		return ErrBadSignature
 	}

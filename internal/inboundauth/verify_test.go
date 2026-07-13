@@ -176,6 +176,18 @@ func TestBearerScheme(t *testing.T) {
 	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err != ErrBadSignature {
 		t.Fatalf("expected ErrBadSignature, got %v", err)
 	}
+	// A bare token with no "Bearer " scheme keyword must be rejected (RFC 6750),
+	// even when it equals the configured token — TrimPrefix would otherwise let
+	// it through unchanged.
+	h.Set("Authorization", "abc123")
+	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err != ErrBadSignature {
+		t.Fatalf("expected bare token to be rejected, got %v", err)
+	}
+	// The scheme keyword is case-insensitive per RFC 6750.
+	h.Set("Authorization", "bearer abc123")
+	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err != nil {
+		t.Fatalf("case-insensitive scheme keyword rejected: %v", err)
+	}
 }
 
 // An HMAC scheme with an empty secret must never authenticate, even when the

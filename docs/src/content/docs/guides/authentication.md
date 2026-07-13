@@ -29,7 +29,7 @@ The following table shows each preset, the authentication scheme, and what crede
 | **Shopify** | HMAC-SHA256 (base64) | `X-Shopify-Hmac-Sha256` | API secret key | Signature is base64-encoded. Signed over raw request body. |
 | **Svix / Standard Webhooks** | HMAC-SHA256 (base64) | `webhook-id`, `webhook-timestamp`, `webhook-signature` | Signing secret | Signed over `{id}.{timestamp}.{body}`. Timestamp tolerance: 5 minutes. |
 | **GitLab (token)** | Bearer token | `X-Gitlab-Token` | Webhook secret token | Not a signature — plain string equality. Secret travels on the wire. |
-| **Discord (Ed25519)** | Ed25519 | `X-Signature-Ed25519`, `X-Signature-Timestamp` | Application public key (hex) | Signed over `{timestamp}{body}`. Asymmetric; paste the public key, not a secret. |
+| **Discord (Ed25519)** | Ed25519 | `X-Signature-Ed25519`, `X-Signature-Timestamp` | Application public key (hex) | Signed over `{timestamp}{body}`. Asymmetric; paste the public key, not a secret. Timestamp tolerance: 5 minutes. |
 
 ## Security best practices
 
@@ -47,4 +47,4 @@ Monitor authentication failures using the Prometheus counter:
 nitrohook_webhook_auth_failures_total{source="<source_slug>", reason="<reason>"}
 ```
 
-The `reason` label is one of: `missing_signature` (no signature/token header present), `bad_signature` (signature or token did not match), `missing_timestamp` (a timestamp-bound scheme was missing its timestamp), `timestamp` (timestamp outside the tolerance window), `unsupported` (misconfigured scheme), or `error` (other verification error).
+The `reason` label is one of: `missing_signature` (no signature/token header present), `bad_signature` (signature or token did not match), `missing_timestamp` (a timestamp-bound scheme was missing its timestamp), `timestamp` (timestamp outside the tolerance window), `missing_secret` (the scheme is enabled but no secret/token is configured), `unsupported` (misconfigured scheme), or `error` (other verification error).

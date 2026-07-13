@@ -497,8 +497,10 @@ func (h *Handler) UpdateSourceAuth(c *gin.Context) {
 				base.Secret = secret
 				base.Token = secret // token/bearer reuse the secret field
 				base.PublicKey = publicKey
-				raw, _ := json.Marshal(base)
-				if _, err := h.store.Sources.SetAuthConfig(c.Request.Context(), slug, raw); err != nil {
+				raw, err := json.Marshal(base)
+				if err != nil {
+					authErr = "Failed to encode authentication config"
+				} else if _, err := h.store.Sources.SetAuthConfig(c.Request.Context(), slug, raw); err != nil {
 					authErr = "Failed to save authentication"
 				} else {
 					authOK = "Authentication saved"
@@ -508,7 +510,11 @@ func (h *Handler) UpdateSourceAuth(c *gin.Context) {
 		}
 	}
 
-	source, _ = h.store.Sources.GetBySlug(c.Request.Context(), slug)
+	source, err = h.store.Sources.GetBySlug(c.Request.Context(), slug)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "Failed to reload source")
+		return
+	}
 	if cfg.Scheme == "" {
 		cfg, _ = inboundauth.ParseConfig(source.AuthConfig)
 	}

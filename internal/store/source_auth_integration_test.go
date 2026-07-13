@@ -48,7 +48,10 @@ func TestSetAndGetAuthConfig(t *testing.T) {
 	if _, err := s.Sources.SetAuthConfig(ctx, "auth-src", nil); err != nil {
 		t.Fatalf("clear auth config: %v", err)
 	}
-	cleared, _ := s.Sources.GetBySlug(ctx, "auth-src")
+	cleared, err := s.Sources.GetBySlug(ctx, "auth-src")
+	if err != nil {
+		t.Fatalf("get after clear: %v", err)
+	}
 	if cleared.AuthConfig != nil {
 		t.Fatalf("expected cleared auth_config, got %s", cleared.AuthConfig)
 	}

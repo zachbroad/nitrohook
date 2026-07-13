@@ -42,6 +42,7 @@ var presetConfigs = map[string]Config{
 	"discord-ed25519": {
 		Scheme: SchemeEd25519, Preset: "discord-ed25519",
 		SigHeader: "X-Signature-Ed25519", TSHeader: "X-Signature-Timestamp",
+		TSToleranceS: 300,
 	},
 }
 
