@@ -105,6 +105,23 @@ export function useForwardDelivery() {
     },
   })
 }
+export function useForwardSelected() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(ids.map((id) => api.forwardDelivery(id)))
+      return { forwarded: results.filter((r) => r.status === "fulfilled").length, total: ids.length }
+    },
+    onSuccess: ({ forwarded, total }) => {
+      if (forwarded > 0)
+        toast.success(`Forwarded ${forwarded} ${forwarded === 1 ? "delivery" : "deliveries"}`)
+      if (forwarded < total) toast.error(`Failed to forward ${total - forwarded} of ${total}`)
+      qc.invalidateQueries({ queryKey: ["deliveries"] })
+      qc.invalidateQueries({ queryKey: ["delivery"] })
+    },
+  })
+}
+
 export function useForwardAll(slug: string) {
   const qc = useQueryClient()
   return useMutation({
