@@ -56,7 +56,7 @@ func (h *WebhookHandler) Ingest(c *gin.Context) {
 		return
 	}
 	if err := inboundauth.Verify(authCfg, c.Request.Header, body, time.Now()); err != nil {
-		reason := inboundauth.SourceConfigurationFailureReason(err)
+		reason := inboundauth.FailureReason(err)
 		metrics.WebhookAuthFailures.WithLabelValues(sourceSlug, reason).Inc()
 		slog.Warn("webhook authentication failed", "slug", sourceSlug, "reason", reason)
 		c.String(http.StatusUnauthorized, "unauthorized")

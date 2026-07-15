@@ -66,8 +66,8 @@ func ParseSourceConfiguration(raw json.RawMessage) (SourceConfiguration, error) 
 	return cfg, nil
 }
 
-// SourceConfigurationFailureReason maps a verification error to a short, low-cardinality metric label.
-func SourceConfigurationFailureReason(err error) string {
+// FailureReason maps a verification error to a short, low-cardinality metric label.
+func FailureReason(err error) string {
 	switch {
 	case errors.Is(err, ErrMissingSignature):
 		return "missing_signature"
