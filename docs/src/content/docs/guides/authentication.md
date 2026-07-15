@@ -7,12 +7,19 @@ Without authentication, anyone who knows a source's webhook URL can inject webho
 
 ## Enabling authentication
 
-On a source's Overview page, locate the **Authentication** card:
+On a source's Overview tab, locate the **Authentication** section:
 
-1. Check **Require authentication**
-2. Select a preset from the dropdown (e.g. GitHub, Stripe, Slack)
+1. Turn on the **Authentication** switch
+2. Select a provider from the dropdown (e.g. GitHub, Stripe, Slack)
 3. Paste the shared secret or public key from your webhook provider
-4. Click **Save**
+4. Click **Save authentication**
+
+Saved secrets are never displayed again — the form only shows that one is
+stored. Because every save replaces the whole config, changing any setting
+requires re-entering the secret.
+
+You can also manage this via the REST API — see
+[Update source authentication](/api/sources/#update-source-authentication).
 
 From that point forward, all requests to the source's webhook URL must include the authentication headers or tokens expected by the chosen preset. Invalid or missing authentication returns HTTP 401 and the delivery is not stored.
 

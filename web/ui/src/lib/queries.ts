@@ -10,6 +10,7 @@ export const qk = {
   deliveries: (p: { source?: string; limit?: number } = {}) => ["deliveries", p] as const,
   delivery: (id: string) => ["delivery", id] as const,
   attempts: (id: string) => ["delivery", id, "attempts"] as const,
+  authPresets: ["auth-presets"] as const,
 }
 
 const onError = (e: unknown) =>
@@ -28,6 +29,23 @@ export const useDelivery = (id: string) =>
   useQuery({ queryKey: qk.delivery(id), queryFn: () => api.getDelivery(id), enabled: !!id })
 export const useAttempts = (id: string) =>
   useQuery({ queryKey: qk.attempts(id), queryFn: () => api.listAttempts(id), enabled: !!id })
+
+// Presets are compiled into the server binary, so they never change at runtime.
+export const useAuthPresets = () =>
+  useQuery({ queryKey: qk.authPresets, queryFn: api.listAuthPresets, staleTime: Infinity })
+
+export function useUpdateSourceAuth(slug: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (b: Parameters<typeof api.updateSourceAuth>[1]) =>
+      api.updateSourceAuth(slug, b), onError,
+    onSuccess: (_src, b) => {
+      toast.success(b.enabled ? "Authentication saved" : "Authentication disabled")
+      qc.invalidateQueries({ queryKey: qk.source(slug) })
+      qc.invalidateQueries({ queryKey: qk.sources })
+    },
+  })
+}
 
 export function useCreateSource() {
   const qc = useQueryClient()

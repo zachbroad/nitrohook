@@ -5,12 +5,22 @@ import { renderRoutes } from "@/test/render"
 import { SourceDetail } from "./source-detail"
 import { SourceOverview } from "./source-overview"
 
+const json = (body: unknown) =>
+  new Response(JSON.stringify(body), {
+    status: 200, headers: { "Content-Type": "application/json" },
+  })
+
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({
+  vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL) => {
+    if (String(url).includes("/api/auth/presets"))
+      return Promise.resolve(json([
+        { name: "github", label: "GitHub", needs_secret: true, needs_public_key: false },
+      ]))
+    return Promise.resolve(json({
       id: "1", name: "GitHub", slug: "github", mode: "active",
       created_at: "2024-01-01T00:00:00Z", updated_at: "2024-01-02T00:00:00Z",
-    }), { status: 200, headers: { "Content-Type": "application/json" } })))
+    }))
+  }))
 })
 afterEach(() => vi.restoreAllMocks())
 

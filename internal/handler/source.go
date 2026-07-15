@@ -62,7 +62,7 @@ func (h *SourceHandler) List(c *gin.Context) {
 		c.Data(http.StatusOK, "application/json", []byte("[]"))
 		return
 	}
-	c.JSON(http.StatusOK, sources)
+	c.JSON(http.StatusOK, sanitizeSources(sources))
 }
 
 func (h *SourceHandler) Create(c *gin.Context) {
@@ -114,7 +114,7 @@ func (h *SourceHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, src)
+	c.JSON(http.StatusCreated, sanitizeSource(src))
 }
 
 func (h *SourceHandler) Get(c *gin.Context) {
@@ -126,7 +126,7 @@ func (h *SourceHandler) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, src)
+	c.JSON(http.StatusOK, sanitizeSource(src))
 }
 
 func (h *SourceHandler) Update(c *gin.Context) {
@@ -164,7 +164,7 @@ func (h *SourceHandler) Update(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, src)
+	c.JSON(http.StatusOK, sanitizeSource(src))
 }
 
 type testScriptRequest struct {

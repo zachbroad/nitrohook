@@ -1,6 +1,14 @@
+export interface SourceAuthConfig {
+  enabled: boolean; scheme: string; preset?: string;
+  public_key?: string; has_secret: boolean;
+}
+export interface AuthPreset {
+  name: string; label: string; needs_secret: boolean; needs_public_key: boolean;
+}
 export interface Source {
   id: string; name: string; slug: string; mode: "active" | "record";
-  script_body?: string | null; created_at: string; updated_at: string;
+  script_body?: string | null; auth_config?: SourceAuthConfig | null;
+  created_at: string; updated_at: string;
 }
 export type ActionType = "webhook" | "javascript" | "slack" | "smtp" | "twilio";
 export interface Action {

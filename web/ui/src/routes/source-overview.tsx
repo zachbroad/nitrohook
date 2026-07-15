@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { useSource, useUpdateSource } from "@/lib/queries"
 import { formatDate } from "@/lib/utils"
+import { SourceAuthForm } from "./source-auth-form"
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"
 
@@ -58,6 +59,8 @@ export function SourceOverview() {
           </Button>
         </div>
       </div>
+
+      <SourceAuthForm key={source.updated_at} source={source} />
 
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
         <dt className="text-muted-foreground">Created</dt>

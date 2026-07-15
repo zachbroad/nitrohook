@@ -151,7 +151,7 @@ type sourceData struct {
 	ActionError   string
 	ActionSuccess string
 	AuthPresets   []inboundauth.PresetInfo
-	AuthConfig    inboundauth.Config
+	AuthConfig    inboundauth.SourceConfiguration
 	AuthEnabled   bool
 	AuthError     string
 	AuthSuccess   string

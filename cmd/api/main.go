@@ -143,6 +143,7 @@ func main() {
 	// JSON API
 	api := r.Group("/api")
 	{
+		api.GET("/auth/presets", sourceH.ListAuthPresets)
 		sources := api.Group("/sources")
 		{
 			sources.GET("", sourceH.List)
@@ -152,6 +153,7 @@ func main() {
 				srcGroup.GET("", sourceH.Get)
 				srcGroup.PATCH("", sourceH.Update)
 				srcGroup.DELETE("", sourceH.Delete)
+				srcGroup.PUT("/auth", sourceH.UpdateAuth)
 				srcGroup.POST("/script/test", sourceH.TestScript)
 				srcGroup.POST("/deliveries/forward-all", deliveryH.ForwardAll)
 				actions := srcGroup.Group("/actions")

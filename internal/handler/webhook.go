@@ -49,14 +49,14 @@ func (h *WebhookHandler) Ingest(c *gin.Context) {
 	}
 
 	// Authenticate the request against the source's configured scheme.
-	authCfg, err := inboundauth.ParseConfig(src.AuthConfig)
+	authCfg, err := inboundauth.ParseSourceConfiguration(src.AuthConfig)
 	if err != nil {
 		slog.Error("invalid source auth config", "error", err, "slug", sourceSlug)
 		c.String(http.StatusInternalServerError, "invalid auth configuration")
 		return
 	}
 	if err := inboundauth.Verify(authCfg, c.Request.Header, body, time.Now()); err != nil {
-		reason := inboundauth.FailureReason(err)
+		reason := inboundauth.SourceConfigurationFailureReason(err)
 		metrics.WebhookAuthFailures.WithLabelValues(sourceSlug, reason).Inc()
 		slog.Warn("webhook authentication failed", "slug", sourceSlug, "reason", reason)
 		c.String(http.StatusUnauthorized, "unauthorized")

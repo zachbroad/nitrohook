@@ -64,7 +64,7 @@ func (h *Handler) SourceDetail(c *gin.Context) {
 		c.String(http.StatusNotFound, "Source not found")
 		return
 	}
-	authCfg, _ := inboundauth.ParseConfig(source.AuthConfig)
+	authCfg, _ := inboundauth.ParseSourceConfiguration(source.AuthConfig)
 	h.render(c, "source-overview", sourceData{
 		Nav:         "sources",
 		Source:      source,
@@ -459,7 +459,7 @@ func (h *Handler) UpdateSourceAuth(c *gin.Context) {
 
 	enabled := c.PostForm("enabled") == "on" || c.PostForm("enabled") == "true"
 	var authErr, authOK string
-	var cfg inboundauth.Config
+	var cfg inboundauth.SourceConfiguration
 
 	if !enabled {
 		if _, err := h.store.Sources.SetAuthConfig(c.Request.Context(), slug, nil); err != nil {
@@ -516,7 +516,7 @@ func (h *Handler) UpdateSourceAuth(c *gin.Context) {
 		return
 	}
 	if cfg.Scheme == "" {
-		cfg, _ = inboundauth.ParseConfig(source.AuthConfig)
+		cfg, _ = inboundauth.ParseSourceConfiguration(source.AuthConfig)
 	}
 	h.renderFragment(c, "source-overview", "auth-card", sourceData{
 		Source:      source,

@@ -64,6 +64,10 @@ func main() {
 		if err != nil {
 			return nil, nil, err
 		}
+		// auth_config carries plaintext signing secrets — never expose it.
+		for i := range sources {
+			sources[i].AuthConfig = nil
+		}
 		return jsonResult(sources)
 	})
 

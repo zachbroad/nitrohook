@@ -41,6 +41,7 @@ func setupRouter(t *testing.T) (*gin.Engine, *store.Store, func()) {
 	srcGroup.GET("", sourceH.Get)
 	srcGroup.PATCH("", sourceH.Update)
 	srcGroup.DELETE("", sourceH.Delete)
+	srcGroup.PUT("/auth", sourceH.UpdateAuth)
 	actions := srcGroup.Group("/actions")
 	actions.POST("", actionH.Create)
 	actions.GET("", actionH.List)
@@ -257,7 +258,7 @@ func TestActionCRUDEndpoints(t *testing.T) {
 }
 
 func TestActionCreateBindsConfig(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	registerTestDispatchers()

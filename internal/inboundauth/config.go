@@ -17,8 +17,8 @@ const (
 	SchemeEd25519 Scheme = "ed25519"
 )
 
-// Config is the decoded per-source auth configuration (from sources.auth_config).
-type Config struct {
+// SourceConfiguration is the decoded per-source auth configuration (from sources.auth_config).
+type SourceConfiguration struct {
 	Scheme Scheme `json:"scheme"`
 	Preset string `json:"preset,omitempty"`
 
@@ -36,10 +36,10 @@ type Config struct {
 	TSToleranceS int    `json:"ts_tolerance_secs,omitempty"`
 
 	// Secrets (plaintext at rest).
-	Secret    string `json:"secret,omitempty"`     // HMAC shared secret
-	Token     string `json:"token,omitempty"`      // bearer / plain-token expected value
+	Secret    string `json:"secret,omitempty"`       // HMAC shared secret
+	Token     string `json:"token,omitempty"`        // bearer / plain-token expected value
 	TokenHdr  string `json:"token_header,omitempty"` // header for "token" scheme (e.g. X-Gitlab-Token)
-	PublicKey string `json:"public_key,omitempty"` // ed25519 public key, hex-encoded
+	PublicKey string `json:"public_key,omitempty"`   // ed25519 public key, hex-encoded
 }
 
 var (
@@ -51,14 +51,14 @@ var (
 	ErrMissingSecret           = errors.New("scheme configured without a secret/token")
 )
 
-// ParseConfig decodes sources.auth_config. Nil/empty means no authentication.
-func ParseConfig(raw json.RawMessage) (Config, error) {
+// ParseSourceConfiguration decodes sources.auth_config. Nil/empty means no authentication.
+func ParseSourceConfiguration(raw json.RawMessage) (SourceConfiguration, error) {
 	if len(raw) == 0 {
-		return Config{Scheme: SchemeNone}, nil
+		return SourceConfiguration{Scheme: SchemeNone}, nil
 	}
-	var cfg Config
+	var cfg SourceConfiguration
 	if err := json.Unmarshal(raw, &cfg); err != nil {
-		return Config{}, err
+		return SourceConfiguration{}, err
 	}
 	if cfg.Scheme == "" {
 		cfg.Scheme = SchemeNone
@@ -66,8 +66,8 @@ func ParseConfig(raw json.RawMessage) (Config, error) {
 	return cfg, nil
 }
 
-// FailureReason maps a verification error to a short, low-cardinality metric label.
-func FailureReason(err error) string {
+// SourceConfigurationFailureReason maps a verification error to a short, low-cardinality metric label.
+func SourceConfigurationFailureReason(err error) string {
 	switch {
 	case errors.Is(err, ErrMissingSignature):
 		return "missing_signature"

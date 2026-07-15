@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -34,6 +35,11 @@ func TestCORS_PreflightReturns204(t *testing.T) {
 	setupCORS(t).ServeHTTP(w, req)
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("preflight status = %d, want 204", w.Code)
+	}
+	// PUT is used by /api/sources/{slug}/auth — its absence here breaks the
+	// browser preflight even though server-side tests pass.
+	if methods := w.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(methods, "PUT") {
+		t.Fatalf("Allow-Methods missing PUT: %q", methods)
 	}
 }
 

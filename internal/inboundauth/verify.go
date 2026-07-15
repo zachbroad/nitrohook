@@ -16,7 +16,7 @@ import (
 )
 
 // Verify returns nil if the request is authentic under cfg, or a sentinel error.
-func Verify(cfg Config, header http.Header, rawBody []byte, now time.Time) error {
+func Verify(cfg SourceConfiguration, header http.Header, rawBody []byte, now time.Time) error {
 	switch cfg.Scheme {
 	case SchemeNone:
 		return nil
@@ -33,7 +33,7 @@ func Verify(cfg Config, header http.Header, rawBody []byte, now time.Time) error
 	}
 }
 
-func verifyHMAC(cfg Config, header http.Header, rawBody []byte, now time.Time) error {
+func verifyHMAC(cfg SourceConfiguration, header http.Header, rawBody []byte, now time.Time) error {
 	if cfg.Secret == "" {
 		// A misconfigured scheme with no secret is forgeable (HMAC keyed with
 		// "" can be computed by anyone) — fail closed before doing any work.
@@ -68,14 +68,14 @@ func hasher(algo string) func() hash.Hash {
 }
 
 // computeHMAC returns the raw (un-encoded) HMAC of signed.
-func computeHMAC(cfg Config, signed []byte) []byte {
+func computeHMAC(cfg SourceConfiguration, signed []byte) []byte {
 	mac := hmac.New(hasher(cfg.Algo), []byte(cfg.Secret))
 	mac.Write(signed)
 	return mac.Sum(nil)
 }
 
 // decodeSig decodes a received signature string into raw bytes per cfg.Encoding.
-func decodeSig(cfg Config, sig string) ([]byte, error) {
+func decodeSig(cfg SourceConfiguration, sig string) ([]byte, error) {
 	if cfg.Encoding == "base64" {
 		return base64.StdEncoding.DecodeString(sig)
 	}
@@ -86,7 +86,7 @@ func decodeSig(cfg Config, sig string) ([]byte, error) {
 // configured parser. The "plain" parser handles the raw-body family (GitHub,
 // Forgejo, Shopify). "kv-comma" and "space-list" parsers may yield multiple
 // candidates (e.g. rotated secrets); each is checked in verifyHMAC.
-func extractSignatures(cfg Config, header http.Header) ([]string, error) {
+func extractSignatures(cfg SourceConfiguration, header http.Header) ([]string, error) {
 	switch cfg.SigParser {
 	case "plain", "":
 		raw := header.Get(cfg.SigHeader)
@@ -139,7 +139,7 @@ func extractSignatures(cfg Config, header http.Header) ([]string, error) {
 // buildSignedPayload constructs the byte string that gets HMAC'd.
 // "raw_body" is the whole body. The timestamp-bound templates (ts.body,
 // id.ts.body, slack_v0) enforce a tolerance window against now.
-func buildSignedPayload(cfg Config, header http.Header, rawBody []byte, now time.Time) ([]byte, error) {
+func buildSignedPayload(cfg SourceConfiguration, header http.Header, rawBody []byte, now time.Time) ([]byte, error) {
 	switch cfg.Template {
 	case "raw_body", "":
 		return rawBody, nil
@@ -169,7 +169,7 @@ func buildSignedPayload(cfg Config, header http.Header, rawBody []byte, now time
 // (cfg.TSHeader). Stripe's kv-comma scheme has no separate timestamp
 // header — it embeds "t=<ts>" alongside the signature in cfg.SigHeader —
 // so that's used as a fallback when TSHeader isn't configured.
-func extractTimestamp(cfg Config, header http.Header) (string, error) {
+func extractTimestamp(cfg SourceConfiguration, header http.Header) (string, error) {
 	if cfg.TSHeader != "" {
 		ts := header.Get(cfg.TSHeader)
 		if ts == "" {
@@ -209,7 +209,7 @@ func checkTolerance(tsStr string, toleranceS int, now time.Time) error {
 	return nil
 }
 
-func verifyToken(cfg Config, header http.Header) error {
+func verifyToken(cfg SourceConfiguration, header http.Header) error {
 	if cfg.Token == "" {
 		// An empty configured token would otherwise match an empty header
 		// value via ConstantTimeCompare — fail closed.
@@ -225,7 +225,7 @@ func verifyToken(cfg Config, header http.Header) error {
 	return nil
 }
 
-func verifyBearer(cfg Config, header http.Header) error {
+func verifyBearer(cfg SourceConfiguration, header http.Header) error {
 	if cfg.Token == "" {
 		// An empty configured token would otherwise match "Authorization:
 		// Bearer " (trims to empty) via ConstantTimeCompare — fail closed.
@@ -249,7 +249,7 @@ func verifyBearer(cfg Config, header http.Header) error {
 	return nil
 }
 
-func verifyEd25519(cfg Config, header http.Header, rawBody []byte, now time.Time) error {
+func verifyEd25519(cfg SourceConfiguration, header http.Header, rawBody []byte, now time.Time) error {
 	if cfg.PublicKey == "" {
 		// Likely already fails via hex-decode length below, but be explicit
 		// for clarity and consistency with the other schemes.

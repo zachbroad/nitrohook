@@ -2,14 +2,14 @@ package inboundauth
 
 // PresetInfo describes a selectable provider preset for the UI dropdown.
 type PresetInfo struct {
-	Name           string
-	Label          string
-	NeedsSecret    bool
-	NeedsPublicKey bool
+	Name           string `json:"name"`
+	Label          string `json:"label"`
+	NeedsSecret    bool   `json:"needs_secret"`
+	NeedsPublicKey bool   `json:"needs_public_key"`
 }
 
 // presetConfigs holds the axis values for each preset (secrets filled in by the user).
-var presetConfigs = map[string]Config{
+var presetConfigs = map[string]SourceConfiguration{
 	"github": {
 		Scheme: SchemeHMAC, Preset: "github", Algo: "sha256", Encoding: "hex",
 		SigHeader: "X-Hub-Signature-256", SigParser: "plain", SigPrefix: "sha256=", Template: "raw_body",
@@ -58,7 +58,7 @@ var presetMeta = []PresetInfo{
 }
 
 // Preset returns a base Config for name (secrets left empty), or false if unknown.
-func Preset(name string) (Config, bool) {
+func Preset(name string) (SourceConfiguration, bool) {
 	cfg, ok := presetConfigs[name]
 	return cfg, ok
 }

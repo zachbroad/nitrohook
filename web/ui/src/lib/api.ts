@@ -1,5 +1,5 @@
 import type {
-  Source, Action, Delivery, DeliveryAttempt, ScriptTestResult, ActionType,
+  Source, Action, Delivery, DeliveryAttempt, ScriptTestResult, ActionType, AuthPreset,
 } from "./types"
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"
@@ -30,6 +30,12 @@ export const updateSource = (slug: string, b: Partial<Pick<Source, "mode" | "scr
   apiFetch<Source>(`/api/sources/${slug}`, { method: "PATCH", ...j(b) })
 export const deleteSource = (slug: string) =>
   apiFetch<void>(`/api/sources/${slug}`, { method: "DELETE" })
+
+export const listAuthPresets = () => apiFetch<AuthPreset[]>("/api/auth/presets")
+export const updateSourceAuth = (
+  slug: string,
+  b: { enabled: boolean; preset?: string; secret?: string; public_key?: string },
+) => apiFetch<Source>(`/api/sources/${slug}/auth`, { method: "PUT", ...j(b) })
 
 export const listActions = (slug: string) => apiFetch<Action[]>(`/api/sources/${slug}/actions`)
 export const createAction = (slug: string, b: Record<string, unknown> & { type: ActionType }) =>

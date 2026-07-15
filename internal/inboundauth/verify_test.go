@@ -13,7 +13,7 @@ import (
 )
 
 func TestNoneSchemeAllows(t *testing.T) {
-	cfg, err := ParseConfig(nil)
+	cfg, err := ParseSourceConfiguration(nil)
 	if err != nil {
 		t.Fatalf("parse nil: %v", err)
 	}
@@ -26,7 +26,7 @@ func TestNoneSchemeAllows(t *testing.T) {
 }
 
 func TestUnsupportedScheme(t *testing.T) {
-	cfg := Config{Scheme: "banana"}
+	cfg := SourceConfiguration{Scheme: "banana"}
 	if err := Verify(cfg, http.Header{}, nil, time.Unix(0, 0)); err != ErrUnsupportedScheme {
 		t.Fatalf("expected ErrUnsupportedScheme, got %v", err)
 	}
@@ -34,7 +34,7 @@ func TestUnsupportedScheme(t *testing.T) {
 
 // GitHub's documented sample vector.
 func TestHMACGitHubVector(t *testing.T) {
-	cfg := Config{
+	cfg := SourceConfiguration{
 		Scheme: SchemeHMAC, Algo: "sha256", Encoding: "hex",
 		SigHeader: "X-Hub-Signature-256", SigParser: "plain",
 		SigPrefix: "sha256=", Template: "raw_body",
@@ -54,7 +54,7 @@ func TestHMACForgejoNoPrefix(t *testing.T) {
 	mac.Write(body)
 	sig := hex.EncodeToString(mac.Sum(nil))
 
-	cfg := Config{
+	cfg := SourceConfiguration{
 		Scheme: SchemeHMAC, Algo: "sha256", Encoding: "hex",
 		SigHeader: "X-Forgejo-Signature", SigParser: "plain",
 		Template: "raw_body", Secret: secret,
@@ -87,7 +87,7 @@ func TestHMACStripeTimestamped(t *testing.T) {
 	ts := int64(1_700_000_000)
 	sig := hmacHex(secret, strconv.FormatInt(ts, 10)+"."+string(body))
 
-	cfg := Config{
+	cfg := SourceConfiguration{
 		Scheme: SchemeHMAC, Algo: "sha256", Encoding: "hex",
 		SigHeader: "Stripe-Signature", SigParser: "kv-comma",
 		Template: "ts.body", TSToleranceS: 300, Secret: secret,
@@ -111,7 +111,7 @@ func TestHMACSlack(t *testing.T) {
 	ts := int64(1_700_000_100)
 	sig := "v0=" + hmacHex(secret, "v0:"+strconv.FormatInt(ts, 10)+":"+string(body))
 
-	cfg := Config{
+	cfg := SourceConfiguration{
 		Scheme: SchemeHMAC, Algo: "sha256", Encoding: "hex",
 		SigHeader: "X-Slack-Signature", SigParser: "slack",
 		Template: "slack_v0", TSHeader: "X-Slack-Request-Timestamp",
@@ -134,7 +134,7 @@ func TestHMACSvixSpaceList(t *testing.T) {
 	m.Write([]byte(msg))
 	b64 := base64.StdEncoding.EncodeToString(m.Sum(nil))
 
-	cfg := Config{
+	cfg := SourceConfiguration{
 		Scheme: SchemeHMAC, Algo: "sha256", Encoding: "base64",
 		SigHeader: "webhook-signature", SigParser: "space-list",
 		Template: "id.ts.body", TSHeader: "webhook-timestamp",
@@ -150,7 +150,7 @@ func TestHMACSvixSpaceList(t *testing.T) {
 }
 
 func TestTokenScheme(t *testing.T) {
-	cfg := Config{Scheme: SchemeToken, TokenHdr: "X-Gitlab-Token", Token: "sekret"}
+	cfg := SourceConfiguration{Scheme: SchemeToken, TokenHdr: "X-Gitlab-Token", Token: "sekret"}
 	h := http.Header{}
 	h.Set("X-Gitlab-Token", "sekret")
 	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err != nil {
@@ -166,7 +166,7 @@ func TestTokenScheme(t *testing.T) {
 }
 
 func TestBearerScheme(t *testing.T) {
-	cfg := Config{Scheme: SchemeBearer, Token: "abc123"}
+	cfg := SourceConfiguration{Scheme: SchemeBearer, Token: "abc123"}
 	h := http.Header{}
 	h.Set("Authorization", "Bearer abc123")
 	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err != nil {
@@ -195,7 +195,7 @@ func TestBearerScheme(t *testing.T) {
 func TestHMACEmptySecretFailsClosed(t *testing.T) {
 	secret := ""
 	body := []byte("Hello, World!")
-	cfg := Config{
+	cfg := SourceConfiguration{
 		Scheme: SchemeHMAC, Algo: "sha256", Encoding: "hex",
 		SigHeader: "X-Hub-Signature-256", SigParser: "plain",
 		SigPrefix: "sha256=", Template: "raw_body",
@@ -212,7 +212,7 @@ func TestHMACEmptySecretFailsClosed(t *testing.T) {
 // even when the request sends an empty token header (ConstantTimeCompare
 // would otherwise treat "" == "" as a match).
 func TestTokenEmptySecretFailsClosed(t *testing.T) {
-	cfg := Config{Scheme: SchemeToken, TokenHdr: "X-Gitlab-Token", Token: ""}
+	cfg := SourceConfiguration{Scheme: SchemeToken, TokenHdr: "X-Gitlab-Token", Token: ""}
 	h := http.Header{}
 	h.Set("X-Gitlab-Token", "")
 	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err == nil {
@@ -222,7 +222,7 @@ func TestTokenEmptySecretFailsClosed(t *testing.T) {
 
 // A bearer scheme with an empty configured token must never authenticate.
 func TestBearerEmptySecretFailsClosed(t *testing.T) {
-	cfg := Config{Scheme: SchemeBearer, Token: ""}
+	cfg := SourceConfiguration{Scheme: SchemeBearer, Token: ""}
 	h := http.Header{}
 	h.Set("Authorization", "Bearer ")
 	if err := Verify(cfg, h, nil, time.Unix(0, 0)); err == nil {
@@ -232,7 +232,7 @@ func TestBearerEmptySecretFailsClosed(t *testing.T) {
 
 // An ed25519 scheme with an empty public key must never authenticate.
 func TestEd25519EmptyPublicKeyFailsClosed(t *testing.T) {
-	cfg := Config{
+	cfg := SourceConfiguration{
 		Scheme: SchemeEd25519, SigHeader: "X-Signature-Ed25519",
 		TSHeader: "X-Signature-Timestamp", PublicKey: "",
 	}
@@ -253,7 +253,7 @@ func TestEd25519Scheme(t *testing.T) {
 	body := []byte(`{"type":1}`)
 	sig := ed25519.Sign(priv, append([]byte(ts), body...))
 
-	cfg := Config{
+	cfg := SourceConfiguration{
 		Scheme: SchemeEd25519, SigHeader: "X-Signature-Ed25519",
 		TSHeader: "X-Signature-Timestamp", PublicKey: hex.EncodeToString(pub),
 	}
