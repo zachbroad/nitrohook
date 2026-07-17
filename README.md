@@ -1,5 +1,9 @@
 # NitroHook
 
+[![CI](https://github.com/zachbroad/nitrohook/actions/workflows/ci.yml/badge.svg)](https://github.com/zachbroad/nitrohook/actions/workflows/ci.yml)
+[![Docker](https://github.com/zachbroad/nitrohook/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/zachbroad/nitrohook/actions/workflows/docker-publish.yml)
+[![Deploy Docs](https://github.com/zachbroad/nitrohook/actions/workflows/docs.yml/badge.svg)](https://github.com/zachbroad/nitrohook/actions/workflows/docs.yml)
+
 Self-hosted webhook gateway that receives, transforms, and fans out webhook deliveries to multiple destinations. Built with Go, Postgres, and Redis.
 
 ## Screenshots
