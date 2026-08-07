@@ -14,6 +14,7 @@ export default defineConfig({
 					label: 'Getting Started',
 					items: [
 						{ label: 'Introduction', slug: '' },
+						{ label: 'Tour', slug: 'tour' },
 						{ label: 'Quickstart', slug: 'getting-started/quickstart' },
 					],
 				},
@@ -23,6 +24,7 @@ export default defineConfig({
 						{ label: 'Concepts', slug: 'guides/concepts' },
 						{ label: 'Scripting', slug: 'guides/scripting' },
 						{ label: 'Action Types', slug: 'guides/action-types' },
+						{ label: 'MCP Server', slug: 'guides/mcp' },
 					],
 				},
 				{

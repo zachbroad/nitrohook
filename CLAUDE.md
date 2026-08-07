@@ -27,10 +27,11 @@ Hot reload via Air: `air` (watches .go and .html files, configured in `.air.toml
 
 ## Architecture
 
-Two binaries sharing the same internal packages:
+Three binaries sharing the same internal packages:
 
 - **`cmd/api`** — HTTP server (Gin). Ingests webhooks at `POST /webhooks/:sourceSlug`, serves REST API under `/api/`, and a web UI. Supports `--migrate` and `--worker` flags (in-process worker).
 - **`cmd/worker`** — Standalone fan-out worker. Reads from Redis Stream `deliveries` (consumer group `fanout-workers`), dispatches to actions with exponential backoff retry.
+- **`cmd/mcp`** — Model Context Protocol server (stdio). Exposes read-only `list_sources`, `list_actions`, `list_deliveries` tools backed by the same store. Built on `github.com/modelcontextprotocol/go-sdk`.
 
 ### Key internal packages
 
@@ -42,6 +43,7 @@ Two binaries sharing the same internal packages:
 | `worker` | FanoutWorker — Redis consumer group, concurrent dispatch, retry polling |
 | `dispatch` | Pluggable dispatchers (Webhook, Slack, SMTP, JavaScript, Twilio) implementing `Dispatcher` interface |
 | `script` | Sandboxed JS execution via Goja (source transforms, action transforms, action scripts). 64KB limit, 500ms timeout |
+| `inboundauth` | Verifies incoming webhook authenticity (HMAC/bearer/token/Ed25519) against per-source config, with provider presets |
 | `signing` | HMAC-SHA256 signing/verification for webhook deliveries |
 | `config` | Env-var-based config loading with defaults |
 | `database` | pgx pool connection + golang-migrate runner |
@@ -65,3 +67,10 @@ Required services: PostgreSQL 18, Redis 8. See `.env.example` for all env vars. 
 ## Migrations
 
 SQL files in `/migrations/` managed by golang-migrate. Naming: sequential numbered pairs (`000001_name.up.sql` / `000001_name.down.sql`).
+
+## Changelog & docs upkeep
+
+When you make a user-facing change (new feature, flag, command, config var, behavior change, or fix), keep these in sync as part of the same change — not as an afterthought:
+
+- **`CHANGELOG.md`** — follows [Keep a Changelog](https://keepachangelog.com/) + [SemVer](https://semver.org/). Add an entry under the `## [Unreleased]` section using the appropriate group (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`). On release, rename `[Unreleased]` to the new `## [x.y.z] - YYYY-MM-DD`, add a fresh empty `[Unreleased]`, update the compare links at the bottom, and tag the commit `vx.y.z`.
+- **Docs site (`docs/`)** — an [Astro Starlight](https://starlight.astro.build/) site under `docs/src/content/docs/`. Update the relevant page(s) so the published docs match the change (e.g. a new command belongs in `getting-started/quickstart.md`, a new config var in `self-hosting/configuration.md`, a new action type in `guides/action-types.md`). Do not hand-edit `docs/dist/` — it is generated build output.
