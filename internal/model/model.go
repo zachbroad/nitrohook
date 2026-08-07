@@ -8,13 +8,14 @@ import (
 )
 
 type Source struct {
-	ID         uuid.UUID `json:"id"`
-	Name       string    `json:"name"`
-	Slug       string    `json:"slug"`
-	Mode       string    `json:"mode"`
-	ScriptBody *string   `json:"script_body,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID         uuid.UUID       `json:"id"`
+	Name       string          `json:"name"`
+	Slug       string          `json:"slug"`
+	Mode       string          `json:"mode"`
+	ScriptBody *string         `json:"script_body,omitempty"`
+	AuthConfig json.RawMessage `json:"auth_config,omitempty"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
 }
 
 type ActionType string
@@ -28,17 +29,17 @@ const (
 )
 
 type Action struct {
-	ID            uuid.UUID       `json:"id"`
-	SourceID      uuid.UUID       `json:"source_id"`
-	Type          ActionType      `json:"type"`
-	TargetURL     *string         `json:"target_url,omitempty"`
-	ScriptBody    *string         `json:"script_body,omitempty"`
-	SigningSecret *string         `json:"signing_secret,omitempty"`
+	ID              uuid.UUID       `json:"id"`
+	SourceID        uuid.UUID       `json:"source_id"`
+	Type            ActionType      `json:"type"`
+	TargetURL       *string         `json:"target_url,omitempty"`
+	ScriptBody      *string         `json:"script_body,omitempty"`
+	SigningSecret   *string         `json:"signing_secret,omitempty"`
 	Config          json.RawMessage `json:"config,omitempty"`
 	TransformScript *string         `json:"transform_script,omitempty"`
 	IsActive        bool            `json:"is_active"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
 type DeliveryStatus string
@@ -61,6 +62,7 @@ type Delivery struct {
 	ReceivedAt         time.Time       `json:"received_at"`
 	TransformedPayload json.RawMessage `json:"transformed_payload,omitempty"`
 	TransformedHeaders json.RawMessage `json:"transformed_headers,omitempty"`
+	RetryCount         int             `json:"retry_count"`
 }
 
 type AttemptStatus string

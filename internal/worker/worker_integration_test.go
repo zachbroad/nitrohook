@@ -82,7 +82,7 @@ func TestWorkerEndToEnd(t *testing.T) {
 		}
 	}
 
-	if string(receivedPayload) != `{"event":"push","ref":"main"}` {
+	if !testutil.JSONEqual(t, receivedPayload, []byte(`{"event":"push","ref":"main"}`)) {
 		t.Fatalf("unexpected payload: %q", string(receivedPayload))
 	}
 

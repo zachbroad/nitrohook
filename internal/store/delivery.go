@@ -43,8 +43,12 @@ func (s *DeliveryStore) GetByID(ctx context.Context, id uuid.UUID) (*model.Deliv
 }
 
 func (s *DeliveryStore) List(ctx context.Context, sourceSlug *string, limit int) ([]model.Delivery, error) {
-	query := `SELECT d.id, d.source_id, d.idempotency_key, d.headers, d.payload, d.status, d.received_at, d.transformed_payload, d.transformed_headers
-		 FROM deliveries d`
+	query := `SELECT d.id, d.source_id, d.idempotency_key, d.headers, d.payload, d.status, d.received_at, d.transformed_payload, d.transformed_headers,
+		 COALESCE(a.retry_count, 0) AS retry_count
+		 FROM deliveries d
+		 LEFT JOIN (
+			 SELECT delivery_id, COUNT(*) AS retry_count FROM delivery_attempts WHERE attempt_number > 1 GROUP BY delivery_id
+		 ) a ON a.delivery_id = d.id`
 	args := []any{}
 	argIdx := 1
 
@@ -67,7 +71,7 @@ func (s *DeliveryStore) List(ctx context.Context, sourceSlug *string, limit int)
 	deliveries := make([]model.Delivery, 0)
 	for rows.Next() {
 		var d model.Delivery
-		if err := rows.Scan(&d.ID, &d.SourceID, &d.IdempotencyKey, &d.Headers, &d.Payload, &d.Status, &d.ReceivedAt, &d.TransformedPayload, &d.TransformedHeaders); err != nil {
+		if err := rows.Scan(&d.ID, &d.SourceID, &d.IdempotencyKey, &d.Headers, &d.Payload, &d.Status, &d.ReceivedAt, &d.TransformedPayload, &d.TransformedHeaders, &d.RetryCount); err != nil {
 			return nil, fmt.Errorf("scan delivery: %w", err)
 		}
 		deliveries = append(deliveries, d)

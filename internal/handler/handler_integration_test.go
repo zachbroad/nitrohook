@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/zachbroad/nitrohook/internal/handler"
 	"github.com/zachbroad/nitrohook/internal/model"
+	"github.com/zachbroad/nitrohook/internal/store"
 	"github.com/zachbroad/nitrohook/internal/testutil"
 )
 
@@ -19,7 +20,7 @@ func init() {
 	gin.SetMode(gin.TestMode)
 }
 
-func setupRouter(t *testing.T) (*gin.Engine, func()) {
+func setupRouter(t *testing.T) (*gin.Engine, *store.Store, func()) {
 	t.Helper()
 	s, _ := testutil.SetupTestDB(t)
 	rdb := testutil.SetupTestRedis(t)
@@ -27,7 +28,7 @@ func setupRouter(t *testing.T) (*gin.Engine, func()) {
 	webhookH := handler.NewWebhookHandler(s, rdb)
 	sourceH := handler.NewSourceHandler(s)
 	actionH := handler.NewActionHandler(s)
-	deliveryH := handler.NewDeliveryHandler(s)
+	deliveryH := handler.NewDeliveryHandler(s, rdb)
 
 	r := gin.New()
 	r.POST("/webhooks/:sourceSlug", webhookH.Ingest)
@@ -40,6 +41,7 @@ func setupRouter(t *testing.T) (*gin.Engine, func()) {
 	srcGroup.GET("", sourceH.Get)
 	srcGroup.PATCH("", sourceH.Update)
 	srcGroup.DELETE("", sourceH.Delete)
+	srcGroup.PUT("/auth", sourceH.UpdateAuth)
 	actions := srcGroup.Group("/actions")
 	actions.POST("", actionH.Create)
 	actions.GET("", actionH.List)
@@ -51,7 +53,7 @@ func setupRouter(t *testing.T) (*gin.Engine, func()) {
 	deliveries.GET("/:id", deliveryH.Get)
 	deliveries.GET("/:id/attempts", deliveryH.ListAttempts)
 
-	return r, func() {}
+	return r, s, func() {}
 }
 
 func createSource(t *testing.T, r *gin.Engine, name, slug string) {
@@ -67,7 +69,7 @@ func createSource(t *testing.T, r *gin.Engine, name, slug string) {
 }
 
 func TestWebhookIngest(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	createSource(t, r, "Ingest Test", "ingest-test")
@@ -91,7 +93,7 @@ func TestWebhookIngest(t *testing.T) {
 }
 
 func TestWebhookIngestIdempotency(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	createSource(t, r, "Idem Test", "idem-test")
@@ -122,7 +124,7 @@ func TestWebhookIngestIdempotency(t *testing.T) {
 }
 
 func TestWebhookIngestInvalidJSON(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	createSource(t, r, "Invalid JSON", "invalid-json")
@@ -138,7 +140,7 @@ func TestWebhookIngestInvalidJSON(t *testing.T) {
 }
 
 func TestWebhookIngestUnknownSource(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	req := httptest.NewRequest(http.MethodPost, "/webhooks/nonexistent", bytes.NewBufferString(`{}`))
@@ -152,7 +154,7 @@ func TestWebhookIngestUnknownSource(t *testing.T) {
 }
 
 func TestSourceCRUDEndpoints(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	// Create
@@ -194,7 +196,7 @@ func TestSourceCRUDEndpoints(t *testing.T) {
 }
 
 func TestActionCRUDEndpoints(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	// Need dispatchers registered for validation
@@ -255,8 +257,74 @@ func TestActionCRUDEndpoints(t *testing.T) {
 	}
 }
 
+func TestActionCreateBindsConfig(t *testing.T) {
+	r, _, cleanup := setupRouter(t)
+	defer cleanup()
+
+	registerTestDispatchers()
+
+	createSource(t, r, "Action Config", "action-config")
+
+	// Create a slack action with config - this previously returned 400
+	// "config is required" because createActionRequest had no Config field.
+	actionBody, _ := json.Marshal(map[string]any{
+		"type": "slack",
+		"config": map[string]string{
+			"webhook_url": "https://hooks.slack.com/services/T/B/x",
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/sources/action-config/actions", bytes.NewReader(actionBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create action: expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var action model.Action
+	if err := json.Unmarshal(w.Body.Bytes(), &action); err != nil {
+		t.Fatalf("unmarshal create response: %v", err)
+	}
+
+	var cfg map[string]any
+	if err := json.Unmarshal(action.Config, &cfg); err != nil {
+		t.Fatalf("unmarshal action config: %v (raw: %s)", err, string(action.Config))
+	}
+	if cfg["webhook_url"] != "https://hooks.slack.com/services/T/B/x" {
+		t.Fatalf("expected config.webhook_url to be set, got: %v", cfg)
+	}
+
+	// Update the action's config - this previously silently no-op'd because
+	// config was never passed into store.ActionUpdateParams.
+	updateBody, _ := json.Marshal(map[string]any{
+		"config": map[string]string{
+			"webhook_url": "https://hooks.slack.com/services/T/B/updated",
+		},
+	})
+	req = httptest.NewRequest(http.MethodPatch, "/api/sources/action-config/actions/"+action.ID.String(), bytes.NewReader(updateBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("update action: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var updated model.Action
+	if err := json.Unmarshal(w.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("unmarshal update response: %v", err)
+	}
+
+	var updatedCfg map[string]any
+	if err := json.Unmarshal(updated.Config, &updatedCfg); err != nil {
+		t.Fatalf("unmarshal updated action config: %v (raw: %s)", err, string(updated.Config))
+	}
+	if updatedCfg["webhook_url"] != "https://hooks.slack.com/services/T/B/updated" {
+		t.Fatalf("expected config.webhook_url to be updated, got: %v", updatedCfg)
+	}
+}
+
 func TestDeliveryListEndpoint(t *testing.T) {
-	r, cleanup := setupRouter(t)
+	r, _, cleanup := setupRouter(t)
 	defer cleanup()
 
 	createSource(t, r, "Del List", "del-list")

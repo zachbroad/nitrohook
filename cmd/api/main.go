@@ -83,13 +83,14 @@ func main() {
 	webhookH := handler.NewWebhookHandler(s, rdb)
 	sourceH := handler.NewSourceHandler(s)
 	actionH := handler.NewActionHandler(s)
-	deliveryH := handler.NewDeliveryHandler(s)
+	deliveryH := handler.NewDeliveryHandler(s, rdb)
 	webH := web.NewHandler(s, rdb)
 
 	// Routes
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestLogger())
+	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
 	r.RedirectFixedPath = true
 	r.RedirectTrailingSlash = true
 
@@ -124,6 +125,7 @@ func main() {
 	r.POST("/sources/:slug/update", webH.UpdateSource)
 	r.DELETE("/sources/:slug", webH.DeleteSource)
 	r.POST("/sources/:slug/mode", webH.UpdateSourceMode)
+	r.POST("/sources/:slug/auth", webH.UpdateSourceAuth)
 	r.POST("/sources/:slug/script", webH.UpdateSourceScript)
 	r.POST("/sources/:slug/script/clear", webH.ClearSourceScript)
 	r.POST("/sources/:slug/script/test", webH.TestSourceScript)
@@ -141,6 +143,7 @@ func main() {
 	// JSON API
 	api := r.Group("/api")
 	{
+		api.GET("/auth/presets", sourceH.ListAuthPresets)
 		sources := api.Group("/sources")
 		{
 			sources.GET("", sourceH.List)
@@ -150,6 +153,9 @@ func main() {
 				srcGroup.GET("", sourceH.Get)
 				srcGroup.PATCH("", sourceH.Update)
 				srcGroup.DELETE("", sourceH.Delete)
+				srcGroup.PUT("/auth", sourceH.UpdateAuth)
+				srcGroup.POST("/script/test", sourceH.TestScript)
+				srcGroup.POST("/deliveries/forward-all", deliveryH.ForwardAll)
 				actions := srcGroup.Group("/actions")
 				{
 					actions.POST("", actionH.Create)
@@ -165,6 +171,7 @@ func main() {
 			deliveries.GET("", deliveryH.List)
 			deliveries.GET("/:id", deliveryH.Get)
 			deliveries.GET("/:id/attempts", deliveryH.ListAttempts)
+			deliveries.POST("/:id/forward", deliveryH.Forward)
 		}
 	}
 

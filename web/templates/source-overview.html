@@ -30,6 +30,7 @@
 </div>
 
 {{template "mode-card" .}}
+{{template "auth-card" .}}
 {{end}}
 
 {{define "mode-card"}}
@@ -50,5 +51,42 @@
       hx-target="#mode-card"
       hx-swap="outerHTML">Active</button>
   </div>
+</div>
+{{end}}
+
+{{define "auth-card"}}
+<div class="card" id="auth-card">
+  <h2>Authentication</h2>
+  <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.75rem">
+    Verify incoming webhooks before they are stored. Choose a provider preset and paste the shared secret from the sending platform.
+  </p>
+  {{if .AuthError}}<div class="error-msg">{{.AuthError}}</div>{{end}}
+  {{if .AuthSuccess}}<div class="success-msg">{{.AuthSuccess}}</div>{{end}}
+  <form hx-post="/sources/{{.Source.Slug}}/auth" hx-target="#auth-card" hx-swap="outerHTML">
+    <label style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem">
+      <input type="checkbox" name="enabled" {{if .AuthEnabled}}checked{{end}}>
+      Require authentication
+    </label>
+    <div class="form-inline" style="margin-bottom:0.75rem">
+      <label style="font-weight:600;font-size:0.85rem;min-width:140px">Provider</label>
+      <select name="preset" style="flex:1;min-width:200px">
+        {{range .AuthPresets}}
+        <option value="{{.Name}}" {{if eq $.AuthConfig.Preset .Name}}selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+    </div>
+    <div class="form-inline" style="margin-bottom:0.75rem">
+      <label style="font-weight:600;font-size:0.85rem;min-width:140px">Shared secret / token</label>
+      <input type="password" name="secret" placeholder="Paste the signing secret" autocomplete="off" style="flex:1;min-width:200px">
+    </div>
+    <div class="form-inline" style="margin-bottom:0.75rem">
+      <label style="font-weight:600;font-size:0.85rem;min-width:140px">Public key (Ed25519 only)</label>
+      <input type="text" name="public_key" value="{{.AuthConfig.PublicKey}}" placeholder="Hex-encoded Ed25519 public key" autocomplete="off" style="flex:1;min-width:200px">
+    </div>
+    <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem">
+      HMAC and Ed25519 verify a signature without exposing the secret on the wire. Bearer/token schemes send the secret with every request — prefer a signature scheme when the sender supports one.
+    </p>
+    <button type="submit" class="btn btn-primary btn-sm">Save Authentication</button>
+  </form>
 </div>
 {{end}}

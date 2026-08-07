@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -20,18 +21,20 @@ func NewActionHandler(s *store.Store) *ActionHandler {
 }
 
 type createActionRequest struct {
-	Type            string  `json:"type"`
-	TargetURL       *string `json:"target_url,omitempty"`
-	SigningSecret   *string `json:"signing_secret,omitempty"`
-	ScriptBody      *string `json:"script_body,omitempty"`
-	TransformScript *string `json:"transform_script,omitempty"`
+	Type            string          `json:"type"`
+	TargetURL       *string         `json:"target_url,omitempty"`
+	SigningSecret   *string         `json:"signing_secret,omitempty"`
+	ScriptBody      *string         `json:"script_body,omitempty"`
+	Config          json.RawMessage `json:"config,omitempty"`
+	TransformScript *string         `json:"transform_script,omitempty"`
 }
 
 type updateActionRequest struct {
-	TargetURL       *string `json:"target_url,omitempty"`
-	SigningSecret   *string `json:"signing_secret,omitempty"`
-	IsActive        *bool   `json:"is_active,omitempty"`
-	TransformScript *string `json:"transform_script,omitempty"`
+	TargetURL       *string         `json:"target_url,omitempty"`
+	SigningSecret   *string         `json:"signing_secret,omitempty"`
+	IsActive        *bool           `json:"is_active,omitempty"`
+	Config          json.RawMessage `json:"config,omitempty"`
+	TransformScript *string         `json:"transform_script,omitempty"`
 }
 
 func (h *ActionHandler) Create(c *gin.Context) {
@@ -66,6 +69,7 @@ func (h *ActionHandler) Create(c *gin.Context) {
 		TargetURL:     req.TargetURL,
 		SigningSecret: req.SigningSecret,
 		ScriptBody:    req.ScriptBody,
+		Config:        req.Config,
 	}
 	if err := d.Validate(tmpAction); err != nil {
 		c.String(http.StatusBadRequest, err.Error())
@@ -85,6 +89,7 @@ func (h *ActionHandler) Create(c *gin.Context) {
 		TargetURL:       req.TargetURL,
 		SigningSecret:   req.SigningSecret,
 		ScriptBody:      req.ScriptBody,
+		Config:          req.Config,
 		TransformScript: req.TransformScript,
 	})
 	if err != nil {
@@ -152,6 +157,7 @@ func (h *ActionHandler) Update(c *gin.Context) {
 		TargetURL:       req.TargetURL,
 		SigningSecret:   req.SigningSecret,
 		IsActive:        req.IsActive,
+		Config:          req.Config,
 		TransformScript: req.TransformScript,
 	})
 	if err != nil {

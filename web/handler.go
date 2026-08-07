@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"github.com/zachbroad/nitrohook/internal/inboundauth"
 	"github.com/zachbroad/nitrohook/internal/model"
 	"github.com/zachbroad/nitrohook/internal/script"
 	"github.com/zachbroad/nitrohook/internal/store"
@@ -149,6 +150,11 @@ type sourceData struct {
 	EditAction    *model.Action
 	ActionError   string
 	ActionSuccess string
+	AuthPresets   []inboundauth.PresetInfo
+	AuthConfig    inboundauth.SourceConfiguration
+	AuthEnabled   bool
+	AuthError     string
+	AuthSuccess   string
 }
 
 type scriptTestData struct {

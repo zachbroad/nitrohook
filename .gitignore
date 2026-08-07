@@ -45,3 +45,8 @@ backend.conf
 # OS
 .DS_Store
 Thumbs.db
+
+# Superpowers local tooling state (self-ignored; SDD task briefs, review diffs)
+.superpowers/
+
+.playwright-mcp/
